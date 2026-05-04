@@ -30,7 +30,7 @@ litellm_host="$agent-litellm-api.$agent_base_domain"
 eval "master_key=\${$master_var:-}"
 [ -n "$master_key" ] || { printf 'Missing %s in .env.\n' "$master_var" >&2; exit 1; }
 
-payload='{"models":["chatgpt/gpt-5.5","chatgpt/gpt-5.5-pro","chatgpt/gpt-5.4","chatgpt/gpt-5.4-pro","chatgpt/gpt-5.3-codex","chatgpt/gpt-5.3-codex-spark","chatgpt/gpt-5.3-instant","chatgpt/gpt-5.3-chat-latest"],"metadata":{"owner":"agent:'"$agent"'","type":"hermes-agent"}}'
+payload='{"key_alias":"'"$agent"'-hermes","models":["chatgpt/gpt-5.5","chatgpt/gpt-5.5-pro","chatgpt/gpt-5.4","chatgpt/gpt-5.4-pro","chatgpt/gpt-5.3-codex","chatgpt/gpt-5.3-codex-spark","chatgpt/gpt-5.3-instant","chatgpt/gpt-5.3-chat-latest"],"metadata":{"owner":"agent:'"$agent"'","type":"hermes-agent"}}'
 
 response_file=".create-agent-key.response.$$"
 headers_file=".create-agent-key.headers.$$"
