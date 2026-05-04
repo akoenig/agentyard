@@ -342,7 +342,7 @@ Create the frontend environment file:
 
 ```bash
 cp frontend/.env.example frontend/.env
-chmod go-rwx frontend/.env
+chmod go-rwx frontend/.env*
 ```
 
 Set at least these values in `frontend/.env`:

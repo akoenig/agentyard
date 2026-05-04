@@ -21,7 +21,7 @@ OpenWebUI
 
 ```bash
 cp frontend/.env.example frontend/.env
-chmod go-rwx frontend/.env
+chmod go-rwx frontend/.env*
 ```
 
 2. Edit `frontend/.env`.
