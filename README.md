@@ -226,6 +226,70 @@ Because `tls internal` uses a local CA, clients need to trust Caddy's root certi
 
 Caddy stores its internal CA and certificates under `data/caddy/`.
 
+## Front Reverse Proxy
+
+If another Caddy instance sits in front of this local Caddy, proxy to the local Caddy over HTTPS and preserve the agent hostname. The local Caddy routes by `Host` header.
+
+Recommended: copy the local Caddy root CA certificate from the agent host to the front proxy host:
+
+```text
+data/caddy/data/caddy/pki/authorities/local/root.crt
+```
+
+Example front Caddy config:
+
+```caddyfile
+research-litellm-api.example.com {
+  encode zstd gzip
+
+  reverse_proxy https://agent-host:443 {
+    header_up Host research-litellm-api.example.com
+
+    transport http {
+      tls_server_name research-litellm-api.example.com
+      tls_trusted_ca_certs /etc/caddy/certs/personal-agent-root.crt
+    }
+  }
+}
+
+research-hermes-api.example.com {
+  encode zstd gzip
+
+  reverse_proxy https://agent-host:443 {
+    header_up Host research-hermes-api.example.com
+
+    transport http {
+      tls_server_name research-hermes-api.example.com
+      tls_trusted_ca_certs /etc/caddy/certs/personal-agent-root.crt
+    }
+  }
+}
+```
+
+Less secure fallback for a private, controlled network:
+
+```caddyfile
+research-litellm-api.example.com {
+  reverse_proxy https://agent-host:443 {
+    header_up Host research-litellm-api.example.com
+
+    transport http {
+      tls_insecure_skip_verify
+    }
+  }
+}
+
+research-hermes-api.example.com {
+  reverse_proxy https://agent-host:443 {
+    header_up Host research-hermes-api.example.com
+
+    transport http {
+      tls_insecure_skip_verify
+    }
+  }
+}
+```
+
 ## Virtual Keys And Usage
 
 Each Hermes agent gets a LiteLLM virtual key from its own LiteLLM instance. That keeps usage, spend logs, budgets, and key controls isolated per agent.
