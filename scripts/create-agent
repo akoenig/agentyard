@@ -17,14 +17,20 @@ case "$agent" in
 esac
 
 agent_env=$(printf '%s' "$agent" | tr '[:lower:]-' '[:upper:]_')
+if [ -f .env ]; then
+  set -a
+  . ./.env
+  set +a
+fi
+agent_base_domain=${AGENT_BASE_DOMAIN:-example.com}
 db_name="litellm_$(printf '%s' "$agent" | tr '-' '_')"
 litellm_service="litellm-$agent"
 hermes_service="hermes-$agent"
 litellm_master_var="LITELLM_${agent_env}_MASTER_KEY"
 litellm_salt_var="LITELLM_${agent_env}_SALT_KEY"
 hermes_key_var="HERMES_${agent_env}_LITELLM_KEY"
-litellm_host="$agent-litellm-api.example.com"
-hermes_host="$agent-hermes-api.example.com"
+litellm_host="$agent-litellm-api.$agent_base_domain"
+hermes_host="$agent-hermes-api.$agent_base_domain"
 
 if [ -d "agents/$agent" ]; then
   printf 'Agent already exists: %s\n' "$agent" >&2

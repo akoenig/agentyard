@@ -5,6 +5,13 @@ if [ ! -d agents ]; then
   exit 0
 fi
 
+if [ -f .env ]; then
+  set -a
+  . ./.env
+  set +a
+fi
+agent_base_domain=${AGENT_BASE_DOMAIN:-example.com}
+
 for agent_dir in agents/*; do
   [ -d "$agent_dir" ] || exit 0
   agent=$(basename "$agent_dir")
@@ -13,6 +20,6 @@ for agent_dir in agents/*; do
     _*) continue ;;
   esac
   printf '%s\n' "$agent"
-  printf '  LiteLLM: https://%s-litellm-api.example.com\n' "$agent"
-  printf '  Hermes:  https://%s-hermes-api.example.com\n' "$agent"
+  printf '  LiteLLM: https://%s-litellm-api.%s\n' "$agent" "$agent_base_domain"
+  printf '  Hermes:  https://%s-hermes-api.%s\n' "$agent" "$agent_base_domain"
 done

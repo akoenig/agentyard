@@ -37,8 +37,8 @@ agents/research/
     litellm/
 
 Caddy
-  -> research-hermes-api.example.com  -> hermes-research:8642
-  -> research-litellm-api.example.com -> litellm-research:4000
+  -> research-hermes-api.$AGENT_BASE_DOMAIN  -> hermes-research:8642
+  -> research-litellm-api.$AGENT_BASE_DOMAIN -> litellm-research:4000
 
 hermes-research -> litellm-research -> ChatGPT subscription for research
 ```
@@ -80,6 +80,7 @@ Shared settings:
 - `POSTGRES_USER`
 - `POSTGRES_PASSWORD`
 - `POSTGRES_DB`
+- `AGENT_BASE_DOMAIN`
 - `CADDY_HTTP_PORT`
 - `CADDY_HTTPS_PORT`
 
@@ -115,8 +116,8 @@ This creates:
 Add the generated hostnames to DNS or your local hosts file so they resolve to this machine:
 
 ```text
-research-litellm-api.example.com
-research-hermes-api.example.com
+research-litellm-api.$AGENT_BASE_DOMAIN
+research-hermes-api.$AGENT_BASE_DOMAIN
 ```
 
 If Postgres was not running when `scripts/create-agent` ran, create the database manually before starting that agent's LiteLLM:
@@ -160,6 +161,14 @@ List configured agents:
 scripts/list-agents
 ```
 
+Delete an agent and its local runtime data:
+
+```bash
+scripts/delete-agent research
+```
+
+This stops `hermes-research` and `litellm-research` if Docker is available, removes `agents/research/`, removes the agent-specific `.env` entries, drops the `litellm_research` database if Postgres is running, and reloads Caddy if Caddy is running.
+
 The helper scripts use standard POSIX shell tools. `scripts/create-agent-key` also requires `curl` and `python3` to call LiteLLM and extract the generated key from the JSON response.
 
 ## Running Multiple Agents
@@ -198,13 +207,13 @@ The repository includes `agents/_placeholder/config/caddy.caddy` so Caddy has a 
 Example generated route for `research`:
 
 ```caddyfile
-research-litellm-api.example.com {
+research-litellm-api.<AGENT_BASE_DOMAIN> {
   encode zstd gzip
   tls internal
   reverse_proxy litellm-research:4000
 }
 
-research-hermes-api.example.com {
+research-hermes-api.<AGENT_BASE_DOMAIN> {
   encode zstd gzip
   tls internal
   reverse_proxy hermes-research:8642

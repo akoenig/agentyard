@@ -1,0 +1,65 @@
+#!/usr/bin/env sh
+set -eu
+
+usage() {
+  printf 'Usage: %s <agent-name>\n' "$0" >&2
+  exit 1
+}
+
+[ "$#" -eq 1 ] || usage
+
+agent="$1"
+case "$agent" in
+  *[!a-z0-9-]* | "" | -* | *- | _*)
+    printf 'Agent name must use lowercase letters, numbers, and hyphens, cannot start/end with a hyphen, and cannot start with underscore.\n' >&2
+    exit 1
+    ;;
+esac
+
+agent_dir="agents/$agent"
+if [ ! -d "$agent_dir" ]; then
+  printf 'Agent does not exist: %s\n' "$agent" >&2
+  exit 1
+fi
+
+agent_env=$(printf '%s' "$agent" | tr '[:lower:]-' '[:upper:]_')
+db_name="litellm_$(printf '%s' "$agent" | tr '-' '_')"
+litellm_service="litellm-$agent"
+hermes_service="hermes-$agent"
+litellm_master_var="LITELLM_${agent_env}_MASTER_KEY"
+litellm_salt_var="LITELLM_${agent_env}_SALT_KEY"
+hermes_key_var="HERMES_${agent_env}_LITELLM_KEY"
+
+if [ -f .env ]; then
+  set -a
+  . ./.env
+  set +a
+fi
+
+if command -v docker >/dev/null 2>&1; then
+  docker compose -f compose.yaml -f "$agent_dir/config/compose.yaml" stop "$hermes_service" "$litellm_service" 2>/dev/null || true
+  docker compose -f compose.yaml -f "$agent_dir/config/compose.yaml" rm -f "$hermes_service" "$litellm_service" 2>/dev/null || true
+  if docker compose ps postgres >/dev/null 2>&1; then
+    docker compose exec -T postgres dropdb -U "${POSTGRES_USER:-litellm}" --if-exists "$db_name" 2>/dev/null || true
+  fi
+fi
+
+rm -rf "$agent_dir"
+
+if [ -f .env ]; then
+  tmp_file=".env.tmp.$$"
+  grep -v -e "^# Agent: $agent$" \
+    -e "^$litellm_master_var=" \
+    -e "^$litellm_salt_var=" \
+    -e "^$hermes_key_var=" .env >"$tmp_file" || true
+  mv "$tmp_file" .env
+  chmod go-rwx .env*
+fi
+
+if command -v docker >/dev/null 2>&1; then
+  if docker compose ps caddy >/dev/null 2>&1; then
+    docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile 2>/dev/null || true
+  fi
+fi
+
+printf 'Deleted agent %s.\n' "$agent"
