@@ -1,0 +1,78 @@
+#!/usr/bin/env sh
+set -eu
+
+usage() {
+  printf 'Usage: %s <agent-name>\n' "$0" >&2
+  exit 1
+}
+
+[ "$#" -eq 1 ] || usage
+
+agent="$1"
+case "$agent" in
+  *[!a-z0-9-]* | "" | -* | *-)
+    printf 'Agent name must use lowercase letters, numbers, and hyphens, and cannot start/end with a hyphen.\n' >&2
+    exit 1
+    ;;
+esac
+
+agent_env=$(printf '%s' "$agent" | tr '[:lower:]-' '[:upper:]_')
+master_var="LITELLM_${agent_env}_MASTER_KEY"
+hermes_key_var="HERMES_${agent_env}_LITELLM_KEY"
+litellm_host="hermy-$agent-litellm.example.com"
+
+[ -f .env ] || { printf '.env does not exist.\n' >&2; exit 1; }
+set -a
+. ./.env
+set +a
+
+eval "master_key=\${$master_var:-}"
+[ -n "$master_key" ] || { printf 'Missing %s in .env.\n' "$master_var" >&2; exit 1; }
+
+payload='{"models":["chatgpt/gpt-5.5","chatgpt/gpt-5.5-pro","chatgpt/gpt-5.4","chatgpt/gpt-5.4-pro","chatgpt/gpt-5.3-codex","chatgpt/gpt-5.3-codex-spark","chatgpt/gpt-5.3-instant","chatgpt/gpt-5.3-chat-latest"],"metadata":{"owner":"agent:'"$agent"'","type":"hermes-agent"}}'
+
+response=$(curl --silent --show-error --insecure "https://$litellm_host/key/generate" \
+  -H "Authorization: Bearer $master_key" \
+  -H "Content-Type: application/json" \
+  -d "$payload")
+
+key=$(RESPONSE="$response" python3 - <<'PY'
+import json
+import os
+import re
+import sys
+
+raw = os.environ["RESPONSE"]
+try:
+    data = json.loads(raw)
+except json.JSONDecodeError:
+    print(raw, file=sys.stderr)
+    sys.exit(1)
+
+for field in ("key", "token"):
+    value = data.get(field)
+    if isinstance(value, str) and value.startswith("sk-"):
+        print(value)
+        sys.exit(0)
+
+match = re.search(r"sk-[A-Za-z0-9_\-]+", raw)
+if match:
+    print(match.group(0))
+    sys.exit(0)
+
+print(raw, file=sys.stderr)
+sys.exit(1)
+PY
+)
+
+tmp_file=".env.tmp.$$"
+if grep -q "^$hermes_key_var=" .env; then
+  sed "s|^$hermes_key_var=.*|$hermes_key_var=$key|" .env >"$tmp_file"
+else
+  cp .env "$tmp_file"
+  printf '%s=%s\n' "$hermes_key_var" "$key" >>"$tmp_file"
+fi
+mv "$tmp_file" .env
+
+printf 'Stored %s in .env.\n' "$hermes_key_var"
+printf 'Next: docker compose -f compose.yaml -f compose.agents.yaml up -d hermes-%s caddy\n' "$agent"

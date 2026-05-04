@@ -1,0 +1,15 @@
+#!/usr/bin/env sh
+set -eu
+
+if [ ! -d caddy/agents ]; then
+  exit 0
+fi
+
+for route in caddy/agents/*.caddy; do
+  [ -e "$route" ] || exit 0
+  agent=$(basename "$route" .caddy)
+  [ "$agent" = "*" ] && continue
+  printf '%s\n' "$agent"
+  printf '  LiteLLM: https://hermy-%s-litellm.example.com\n' "$agent"
+  printf '  Hermes:  https://hermy-%s-api.example.com\n' "$agent"
+done

@@ -1,19 +1,49 @@
 # Personal Agent Infrastructure
 
-Docker Compose setup for a personal agent stack:
+Docker Compose setup for running multiple isolated Hermes agents behind local Caddy TLS.
 
-- LiteLLM proxy backed by Postgres for virtual keys
-- ChatGPT subscription/Codex models through LiteLLM OAuth device flow
-- Hermes Agent gateway
-- Local Caddy reverse proxy with self-signed TLS from Caddy's internal CA
+Shared services:
 
-LiteLLM and Hermes are only exposed on the internal Docker network. Caddy publishes ports `80` and `443`, terminates TLS locally, and proxies to the services by Compose service name.
+- Caddy reverse proxy with self-signed TLS from Caddy's internal CA
+- Postgres server used by per-agent LiteLLM databases
+
+Per agent:
+
+- One Hermes gateway container
+- One LiteLLM proxy container
+- One Postgres database for LiteLLM state, virtual keys, spend, and usage logs
+- One ChatGPT OAuth token directory, allowing each agent to use its own ChatGPT subscription
+- One Hermes data directory mounted at `/opt/data`
+
+## Architecture
+
+The base stack is defined in `compose.yaml` and contains only shared infrastructure. Agent services are defined in `compose.agents.yaml`.
+
+```text
+Caddy
+  -> hermy-personal-api.example.com     -> hermes-personal:8642
+  -> hermy-personal-litellm.example.com -> litellm-personal:4000
+
+hermes-personal -> litellm-personal -> ChatGPT subscription for personal
+```
+
+Adding another agent creates another isolated pair:
+
+```text
+hermes-research -> litellm-research -> ChatGPT subscription for research
+```
+
+Each LiteLLM instance uses its own database, for example:
+
+```text
+litellm_personal
+litellm_research
+litellm_work
+```
 
 ## Models
 
-LiteLLM is configured for ChatGPT subscription models using the `chatgpt/` provider route. The config includes the latest expected `gpt-5.5` names plus the `gpt-5.4` and `gpt-5.3` models currently shown in LiteLLM's ChatGPT provider docs.
-
-Configured models:
+Agent LiteLLM configs are generated from `litellm/models.chatgpt.yaml`. The current model list includes:
 
 - `chatgpt/gpt-5.5`
 - `chatgpt/gpt-5.5-pro`
@@ -32,80 +62,105 @@ Configured models:
 cp .env.example .env
 ```
 
-2. Edit `.env` and replace all `change-me` values. Keep `LITELLM_MASTER_KEY` and `LITELLM_SALT_KEY` starting with `sk-`.
+2. Edit `.env` and replace all `change-me` values. Keep LiteLLM master and salt keys starting with `sk-`.
 
-3. Load `.env` into the current shell for the `curl` commands below.
+3. Add the hostnames to DNS or your local hosts file so they resolve to this machine.
 
-```bash
-set -a
-. ./.env
-set +a
+```text
+hermy-personal-litellm.example.com
+hermy-personal-api.example.com
 ```
 
-4. Start Caddy, LiteLLM, and Postgres first.
+4. Start shared infrastructure and the personal LiteLLM instance.
 
 ```bash
-docker compose up -d caddy litellm
+docker compose -f compose.yaml -f compose.agents.yaml up -d caddy litellm-personal
 ```
 
-5. Watch the LiteLLM logs for the ChatGPT device-code login URL and complete authentication in a browser.
+5. Watch the personal LiteLLM logs for the ChatGPT device-code login URL and complete authentication in a browser.
 
 ```bash
-docker compose logs -f litellm
+docker compose -f compose.yaml -f compose.agents.yaml logs -f litellm-personal
 ```
 
-The ChatGPT auth token is stored below `data/litellm/chatgpt/` and survives container recreation.
+The ChatGPT auth token for this agent is stored below `data/litellm/personal/chatgpt/` and survives container recreation.
 
-6. Verify LiteLLM with the master key.
+6. Generate the personal Hermes virtual key after OAuth succeeds.
 
 ```bash
-curl --insecure https://hermy-litellm-api.example.com/v1/chat/completions \
-  -H "Authorization: Bearer $LITELLM_MASTER_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"model":"chatgpt/gpt-5.3-codex","messages":[{"role":"user","content":"Say hello"}]}'
+scripts/create-agent-key personal
 ```
 
-## Virtual Keys
+This writes `HERMES_PERSONAL_LITELLM_KEY` into `.env`.
 
-This setup uses the `litellm-database` image and Postgres because LiteLLM virtual keys require database-backed proxy state.
-
-Create one key for Hermes:
+7. Start the full stack.
 
 ```bash
-curl --insecure https://hermy-litellm-api.example.com/key/generate \
-  -H "Authorization: Bearer $LITELLM_MASTER_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"models":["chatgpt/gpt-5.5","chatgpt/gpt-5.5-pro","chatgpt/gpt-5.4","chatgpt/gpt-5.4-pro","chatgpt/gpt-5.3-codex","chatgpt/gpt-5.3-codex-spark","chatgpt/gpt-5.3-instant","chatgpt/gpt-5.3-chat-latest"],"metadata":{"owner":"hermes"}}'
-```
-
-Create one key for the other frontend:
-
-```bash
-curl --insecure https://hermy-litellm-api.example.com/key/generate \
-  -H "Authorization: Bearer $LITELLM_MASTER_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"models":["chatgpt/gpt-5.5","chatgpt/gpt-5.5-pro","chatgpt/gpt-5.4","chatgpt/gpt-5.4-pro","chatgpt/gpt-5.3-codex","chatgpt/gpt-5.3-codex-spark","chatgpt/gpt-5.3-instant","chatgpt/gpt-5.3-chat-latest"],"metadata":{"owner":"frontend"}}'
-```
-
-Put the Hermes key into `.env` as `HERMES_LITELLM_KEY`, then start the full stack:
-
-```bash
-docker compose up -d
+docker compose -f compose.yaml -f compose.agents.yaml up -d
 ```
 
 ## Hermes Setup
 
-Run the Hermes setup wizard once if its data directory has not been initialized:
+Run the Hermes setup wizard once per agent if its data directory has not been initialized:
 
 ```bash
-docker compose run --rm hermes setup
+docker compose -f compose.yaml -f compose.agents.yaml run --rm hermes-personal setup
 ```
 
 Hermes receives these OpenAI-compatible settings from Compose:
 
 ```text
-OPENAI_API_BASE=http://litellm:4000/v1
-OPENAI_API_KEY=$HERMES_LITELLM_KEY
+OPENAI_API_BASE=http://litellm-personal:4000/v1
+OPENAI_API_KEY=$HERMES_PERSONAL_LITELLM_KEY
+```
+
+## Creating Agents
+
+Create an additional isolated agent with:
+
+```bash
+scripts/create-agent research
+```
+
+This creates:
+
+- `litellm-research` service in `compose.agents.yaml`
+- `hermes-research` service in `compose.agents.yaml`
+- `litellm/agents/research/config.yaml`
+- `caddy/agents/research.caddy`
+- `data/litellm/research/`
+- `data/agents/research/`
+- `.env` entries for `LITELLM_RESEARCH_MASTER_KEY`, `LITELLM_RESEARCH_SALT_KEY`, and `HERMES_RESEARCH_LITELLM_KEY`
+
+Then start that agent's LiteLLM and complete ChatGPT OAuth:
+
+```bash
+docker compose -f compose.yaml -f compose.agents.yaml up -d caddy litellm-research
+docker compose -f compose.yaml -f compose.agents.yaml logs -f litellm-research
+```
+
+Generate its Hermes virtual key:
+
+```bash
+scripts/create-agent-key research
+```
+
+Start the Hermes agent:
+
+```bash
+docker compose -f compose.yaml -f compose.agents.yaml up -d hermes-research caddy
+```
+
+Run Hermes setup for that agent if needed:
+
+```bash
+docker compose -f compose.yaml -f compose.agents.yaml run --rm hermes-research setup
+```
+
+List configured agents:
+
+```bash
+scripts/list-agents
 ```
 
 ## Local Caddy
@@ -117,31 +172,52 @@ Published host ports:
 - HTTP: `${CADDY_HTTP_PORT:-80}`
 - HTTPS: `${CADDY_HTTPS_PORT:-443}`
 
-Configured hostnames:
-
-- `hermy-litellm-api.example.com` -> LiteLLM
-- `hermy-hermes-api.example.com` -> Hermes gateway API
-
-Add these hostnames to DNS or your local hosts file so they resolve to this machine. Because `tls internal` uses a local CA, clients need to trust Caddy's root certificate or explicitly allow the self-signed certificate, for example with `curl --insecure` during bootstrap.
-
-The Caddy config is available at `caddy/Caddyfile.example`:
+The root Caddyfile imports all per-agent routes:
 
 ```caddyfile
-hermy-litellm-api.example.com {
+import /etc/caddy/agents/*.caddy
+```
+
+Example per-agent route:
+
+```caddyfile
+hermy-personal-litellm.example.com {
   encode zstd gzip
   tls internal
-  reverse_proxy litellm:4000
+  reverse_proxy litellm-personal:4000
 }
 
-hermy-hermes-api.example.com {
+hermy-personal-api.example.com {
   encode zstd gzip
   tls internal
-  reverse_proxy hermes:8642
+  reverse_proxy hermes-personal:8642
 }
 ```
 
+Because `tls internal` uses a local CA, clients need to trust Caddy's root certificate or explicitly allow the self-signed certificate, for example with `curl --insecure` during bootstrap.
+
 Caddy stores its internal CA and certificates under `data/caddy/`.
+
+## Virtual Keys And Usage
+
+Each Hermes agent gets a LiteLLM virtual key from its own LiteLLM instance. That keeps usage, spend logs, budgets, and key controls isolated per agent.
+
+Example key metadata generated by `scripts/create-agent-key`:
+
+```json
+{
+  "owner": "agent:personal",
+  "type": "hermes-agent"
+}
+```
 
 ## Data
 
-The `data/` directory and service subdirectories are committed as empty directories via `.gitkeep`. Runtime contents are ignored by git.
+The `data/` directory and selected service subdirectories are committed as empty directories via `.gitkeep`. Runtime contents are ignored by git.
+
+Important runtime locations:
+
+- `data/caddy/` stores Caddy's local CA and certificates
+- `data/postgres/` stores Postgres data
+- `data/litellm/<agent>/` stores each agent's ChatGPT OAuth token directory
+- `data/agents/<agent>/` stores each Hermes agent's config, sessions, memories, skills, and logs

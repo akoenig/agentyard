@@ -6,6 +6,10 @@ data/**
 !data/hermes/.gitkeep
 !data/litellm/
 !data/litellm/.gitkeep
+!data/litellm/*/
+!data/litellm/*/.gitkeep
+!data/litellm/personal/
+!data/litellm/personal/.gitkeep
 !data/postgres/
 !data/postgres/.gitkeep
 !data/caddy/
@@ -14,3 +18,9 @@ data/**
 !data/caddy/config/.gitkeep
 !data/caddy/data/
 !data/caddy/data/.gitkeep
+!data/agents/
+!data/agents/.gitkeep
+!data/agents/*/
+!data/agents/*/.gitkeep
+!data/agents/personal/
+!data/agents/personal/.gitkeep

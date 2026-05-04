@@ -1,0 +1,127 @@
+#!/usr/bin/env sh
+set -eu
+
+usage() {
+  printf 'Usage: %s <agent-name>\n' "$0" >&2
+  exit 1
+}
+
+[ "$#" -eq 1 ] || usage
+
+agent="$1"
+case "$agent" in
+  *[!a-z0-9-]* | "" | -* | *-)
+    printf 'Agent name must use lowercase letters, numbers, and hyphens, and cannot start/end with a hyphen.\n' >&2
+    exit 1
+    ;;
+esac
+
+agent_env=$(printf '%s' "$agent" | tr '[:lower:]-' '[:upper:]_')
+db_name="litellm_$(printf '%s' "$agent" | tr '-' '_')"
+litellm_service="litellm-$agent"
+hermes_service="hermes-$agent"
+litellm_master_var="LITELLM_${agent_env}_MASTER_KEY"
+litellm_salt_var="LITELLM_${agent_env}_SALT_KEY"
+hermes_key_var="HERMES_${agent_env}_LITELLM_KEY"
+litellm_host="hermy-$agent-litellm.example.com"
+hermes_host="hermy-$agent-api.example.com"
+
+if grep -q "^  $litellm_service:" compose.agents.yaml 2>/dev/null; then
+  printf 'Agent already exists: %s\n' "$agent" >&2
+  exit 1
+fi
+
+random_key() {
+  if command -v openssl >/dev/null 2>&1; then
+    printf 'sk-%s' "$(openssl rand -hex 24)"
+  else
+    printf 'sk-%s' "$(LC_ALL=C tr -dc 'a-zA-Z0-9' </dev/urandom | dd bs=48 count=1 2>/dev/null)"
+  fi
+}
+
+mkdir -p \
+  "data/agents/$agent" \
+  "data/litellm/$agent" \
+  "litellm/agents/$agent" \
+  caddy/agents
+touch "data/agents/$agent/.gitkeep" "data/litellm/$agent/.gitkeep"
+
+cp litellm/models.chatgpt.yaml "litellm/agents/$agent/config.yaml"
+cat >>"litellm/agents/$agent/config.yaml" <<EOF
+
+general_settings:
+  master_key: os.environ/$litellm_master_var
+EOF
+
+cat >>compose.agents.yaml <<EOF
+
+  $litellm_service:
+    image: docker.litellm.ai/berriai/litellm-database:main-stable
+    container_name: personal-agent-$litellm_service
+    restart: unless-stopped
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    expose:
+      - "4000"
+    environment:
+      DATABASE_URL: postgresql://\${POSTGRES_USER}:\${POSTGRES_PASSWORD}@postgres:5432/$db_name
+      LITELLM_MASTER_KEY: \${$litellm_master_var}
+      LITELLM_SALT_KEY: \${$litellm_salt_var}
+      CHATGPT_TOKEN_DIR: /data/chatgpt
+    volumes:
+      - ./litellm/agents/$agent/config.yaml:/app/config.yaml:ro
+      - ./data/litellm/$agent:/data
+
+  $hermes_service:
+    image: nousresearch/hermes-agent:latest
+    container_name: personal-agent-$hermes_service
+    restart: unless-stopped
+    command: gateway run
+    depends_on:
+      - $litellm_service
+    expose:
+      - "8642"
+    environment:
+      OPENAI_API_BASE: http://$litellm_service:4000/v1
+      OPENAI_API_KEY: \${$hermes_key_var:-}
+    volumes:
+      - ./data/agents/$agent:/opt/data
+    shm_size: 1g
+EOF
+
+cat >"caddy/agents/$agent.caddy" <<EOF
+$litellm_host {
+  encode zstd gzip
+  tls internal
+  reverse_proxy $litellm_service:4000
+}
+
+$hermes_host {
+  encode zstd gzip
+  tls internal
+  reverse_proxy $hermes_service:8642
+}
+EOF
+
+touch .env
+if ! grep -q "^$litellm_master_var=" .env; then
+  {
+    printf '\n# Agent: %s\n' "$agent"
+    printf '%s=%s\n' "$litellm_master_var" "$(random_key)"
+    printf '%s=%s\n' "$litellm_salt_var" "$(random_key)"
+    printf '%s=\n' "$hermes_key_var"
+  } >>.env
+fi
+
+if command -v docker >/dev/null 2>&1; then
+  if docker compose ps postgres >/dev/null 2>&1; then
+    docker compose exec -T postgres createdb -U "${POSTGRES_USER:-litellm}" "$db_name" 2>/dev/null || true
+  fi
+fi
+
+printf 'Created agent %s.\n' "$agent"
+printf 'LiteLLM URL: https://%s\n' "$litellm_host"
+printf 'Hermes URL:   https://%s\n' "$hermes_host"
+printf 'Next: docker compose -f compose.yaml -f compose.agents.yaml up -d caddy %s\n' "$litellm_service"

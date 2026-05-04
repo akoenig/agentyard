@@ -1,0 +1,11 @@
+hermy-personal-litellm.example.com {
+  encode zstd gzip
+  tls internal
+  reverse_proxy litellm-personal:4000
+}
+
+hermy-personal-api.example.com {
+  encode zstd gzip
+  tls internal
+  reverse_proxy hermes-personal:8642
+}
