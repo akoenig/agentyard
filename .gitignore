@@ -8,3 +8,9 @@ data/**
 !data/litellm/.gitkeep
 !data/postgres/
 !data/postgres/.gitkeep
+!data/caddy/
+!data/caddy/.gitkeep
+!data/caddy/config/
+!data/caddy/config/.gitkeep
+!data/caddy/data/
+!data/caddy/data/.gitkeep

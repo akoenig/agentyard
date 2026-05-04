@@ -1,13 +1,11 @@
-{
-  email admin@example.com
-}
-
 hermy-litellm-api.example.com {
   encode zstd gzip
-  reverse_proxy personal-agent-host.example.com:4000
+  tls internal
+  reverse_proxy litellm:4000
 }
 
 hermy-hermes-api.example.com {
   encode zstd gzip
-  reverse_proxy personal-agent-host.example.com:8642
+  tls internal
+  reverse_proxy hermes:8642
 }
