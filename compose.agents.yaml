@@ -1,7 +1,7 @@
 services:
   litellm-personal:
     image: docker.litellm.ai/berriai/litellm-database:main-stable
-    container_name: personal-agent-litellm-personal
+    container_name: personal-litellm
     restart: unless-stopped
     command: ["--config", "/app/config.yaml", "--port", "4000"]
     depends_on:
@@ -20,7 +20,7 @@ services:
 
   hermes-personal:
     image: nousresearch/hermes-agent:latest
-    container_name: personal-agent-hermes-personal
+    container_name: personal-hermes
     restart: unless-stopped
     command: gateway run
     depends_on:

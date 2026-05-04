@@ -10,6 +10,6 @@ for route in caddy/agents/*.caddy; do
   agent=$(basename "$route" .caddy)
   [ "$agent" = "*" ] && continue
   printf '%s\n' "$agent"
-  printf '  LiteLLM: https://hermy-%s-litellm.example.com\n' "$agent"
-  printf '  Hermes:  https://hermy-%s-api.example.com\n' "$agent"
+  printf '  LiteLLM: https://%s-litellm-api.example.com\n' "$agent"
+  printf '  Hermes:  https://%s-hermes-api.example.com\n' "$agent"
 done

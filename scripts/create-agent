@@ -23,8 +23,8 @@ hermes_service="hermes-$agent"
 litellm_master_var="LITELLM_${agent_env}_MASTER_KEY"
 litellm_salt_var="LITELLM_${agent_env}_SALT_KEY"
 hermes_key_var="HERMES_${agent_env}_LITELLM_KEY"
-litellm_host="hermy-$agent-litellm.example.com"
-hermes_host="hermy-$agent-api.example.com"
+litellm_host="$agent-litellm-api.example.com"
+hermes_host="$agent-hermes-api.example.com"
 
 if grep -q "^  $litellm_service:" compose.agents.yaml 2>/dev/null; then
   printf 'Agent already exists: %s\n' "$agent" >&2
@@ -57,7 +57,7 @@ cat >>compose.agents.yaml <<EOF
 
   $litellm_service:
     image: docker.litellm.ai/berriai/litellm-database:main-stable
-    container_name: personal-agent-$litellm_service
+    container_name: $agent-litellm
     restart: unless-stopped
     command: ["--config", "/app/config.yaml", "--port", "4000"]
     depends_on:
@@ -76,7 +76,7 @@ cat >>compose.agents.yaml <<EOF
 
   $hermes_service:
     image: nousresearch/hermes-agent:latest
-    container_name: personal-agent-$hermes_service
+    container_name: $agent-hermes
     restart: unless-stopped
     command: gateway run
     depends_on:

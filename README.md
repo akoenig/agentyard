@@ -21,8 +21,8 @@ The base stack is defined in `compose.yaml` and contains only shared infrastruct
 
 ```text
 Caddy
-  -> hermy-personal-api.example.com     -> hermes-personal:8642
-  -> hermy-personal-litellm.example.com -> litellm-personal:4000
+  -> personal-hermes-api.example.com  -> hermes-personal:8642
+  -> personal-litellm-api.example.com -> litellm-personal:4000
 
 hermes-personal -> litellm-personal -> ChatGPT subscription for personal
 ```
@@ -67,8 +67,8 @@ cp .env.example .env
 3. Add the hostnames to DNS or your local hosts file so they resolve to this machine.
 
 ```text
-hermy-personal-litellm.example.com
-hermy-personal-api.example.com
+personal-litellm-api.example.com
+personal-hermes-api.example.com
 ```
 
 4. Start shared infrastructure and the personal LiteLLM instance.
@@ -124,8 +124,8 @@ scripts/create-agent research
 
 This creates:
 
-- `litellm-research` service in `compose.agents.yaml`
-- `hermes-research` service in `compose.agents.yaml`
+- `litellm-research` service in `compose.agents.yaml` with container name `research-litellm`
+- `hermes-research` service in `compose.agents.yaml` with container name `research-hermes`
 - `litellm/agents/research/config.yaml`
 - `caddy/agents/research.caddy`
 - `data/litellm/research/`
@@ -181,13 +181,13 @@ import /etc/caddy/agents/*.caddy
 Example per-agent route:
 
 ```caddyfile
-hermy-personal-litellm.example.com {
+personal-litellm-api.example.com {
   encode zstd gzip
   tls internal
   reverse_proxy litellm-personal:4000
 }
 
-hermy-personal-api.example.com {
+personal-hermes-api.example.com {
   encode zstd gzip
   tls internal
   reverse_proxy hermes-personal:8642

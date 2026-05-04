@@ -19,7 +19,7 @@ esac
 agent_env=$(printf '%s' "$agent" | tr '[:lower:]-' '[:upper:]_')
 master_var="LITELLM_${agent_env}_MASTER_KEY"
 hermes_key_var="HERMES_${agent_env}_LITELLM_KEY"
-litellm_host="hermy-$agent-litellm.example.com"
+litellm_host="$agent-litellm-api.example.com"
 
 [ -f .env ] || { printf '.env does not exist.\n' >&2; exit 1; }
 set -a
