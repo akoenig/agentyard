@@ -46,7 +46,7 @@ The ChatGPT auth token is stored below `data/litellm/chatgpt/` and survives cont
 curl http://127.0.0.1:4000/v1/chat/completions \
   -H "Authorization: Bearer $LITELLM_MASTER_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"model":"codex","messages":[{"role":"user","content":"Say hello"}]}'
+  -d '{"model":"chatgpt/gpt-5.3-codex","messages":[{"role":"user","content":"Say hello"}]}'
 ```
 
 ## Virtual Keys
@@ -59,7 +59,7 @@ Create one key for Hermes:
 curl http://127.0.0.1:4000/key/generate \
   -H "Authorization: Bearer $LITELLM_MASTER_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"models":["codex","codex-spark","chat-latest"],"metadata":{"owner":"hermes"}}'
+  -d '{"models":["chatgpt/gpt-5.4","chatgpt/gpt-5.4-pro","chatgpt/gpt-5.3-codex","chatgpt/gpt-5.3-codex-spark","chatgpt/gpt-5.3-instant","chatgpt/gpt-5.3-chat-latest"],"metadata":{"owner":"hermes"}}'
 ```
 
 Create one key for the other frontend:
@@ -68,7 +68,7 @@ Create one key for the other frontend:
 curl http://127.0.0.1:4000/key/generate \
   -H "Authorization: Bearer $LITELLM_MASTER_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"models":["codex","codex-spark","chat-latest"],"metadata":{"owner":"frontend"}}'
+  -d '{"models":["chatgpt/gpt-5.4","chatgpt/gpt-5.4-pro","chatgpt/gpt-5.3-codex","chatgpt/gpt-5.3-codex-spark","chatgpt/gpt-5.3-instant","chatgpt/gpt-5.3-chat-latest"],"metadata":{"owner":"frontend"}}'
 ```
 
 Put the Hermes key into `.env` as `HERMES_LITELLM_KEY`, then start the full stack:
