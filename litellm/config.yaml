@@ -1,0 +1,21 @@
+model_list:
+  - model_name: codex
+    model_info:
+      mode: responses
+    litellm_params:
+      model: chatgpt/gpt-5.3-codex
+
+  - model_name: codex-spark
+    model_info:
+      mode: responses
+    litellm_params:
+      model: chatgpt/gpt-5.3-codex-spark
+
+  - model_name: chat-latest
+    model_info:
+      mode: responses
+    litellm_params:
+      model: chatgpt/gpt-5.3-chat-latest
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY

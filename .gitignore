@@ -1,0 +1,10 @@
+.env
+data/**
+!data/
+!data/.gitkeep
+!data/hermes/
+!data/hermes/.gitkeep
+!data/litellm/
+!data/litellm/.gitkeep
+!data/postgres/
+!data/postgres/.gitkeep

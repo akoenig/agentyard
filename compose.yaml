@@ -1,0 +1,53 @@
+services:
+  litellm:
+    image: docker.litellm.ai/berriai/litellm-database:main-stable
+    container_name: personal-agent-litellm
+    restart: unless-stopped
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${LITELLM_PORT:-4000}:4000"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+      LITELLM_SALT_KEY: ${LITELLM_SALT_KEY}
+      CHATGPT_TOKEN_DIR: /data/chatgpt
+    volumes:
+      - ./litellm/config.yaml:/app/config.yaml:ro
+      - ./data/litellm:/data
+
+  postgres:
+    image: postgres:17-alpine
+    container_name: personal-agent-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  hermes:
+    image: nousresearch/hermes-agent:latest
+    container_name: personal-agent-hermes
+    restart: unless-stopped
+    command: gateway run
+    depends_on:
+      - litellm
+    ports:
+      - "127.0.0.1:${HERMES_GATEWAY_PORT:-8642}:8642"
+      - "127.0.0.1:${HERMES_DASHBOARD_PORT:-9119}:9119"
+    environment:
+      HERMES_DASHBOARD: ${HERMES_DASHBOARD:-1}
+      OPENAI_API_BASE: http://litellm:4000/v1
+      OPENAI_API_KEY: ${HERMES_LITELLM_KEY:-}
+    volumes:
+      - ./data/hermes:/opt/data
+    shm_size: 1g
