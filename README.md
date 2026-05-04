@@ -37,7 +37,7 @@ agents/research/
     litellm/
 
 Caddy
-  -> research-hermes-api.$AGENT_BASE_DOMAIN  -> hermes-research:4000
+  -> research-hermes-api.$AGENT_BASE_DOMAIN  -> hermes-research:8642
   -> research-litellm-api.$AGENT_BASE_DOMAIN -> litellm-research:4000
 
 hermes-research -> litellm-research -> ChatGPT subscription for research
@@ -176,7 +176,7 @@ curl --insecure "https://research-hermes-api.$AGENT_BASE_DOMAIN/health" \
   -H "Authorization: Bearer $HERMES_RESEARCH_API_SERVER_KEY"
 ```
 
-Hermes' OpenAI-compatible API server is enabled in the generated Compose file with `API_SERVER_ENABLED=true`, `API_SERVER_HOST=0.0.0.0`, and `API_SERVER_PORT=4000`. The port is only exposed on the internal Docker network and is reached through Caddy.
+Hermes' OpenAI-compatible API server is enabled in the generated Compose file with `API_SERVER_ENABLED=true`, `API_SERVER_HOST=0.0.0.0`, and `API_SERVER_PORT=8642`. The port is only exposed on the internal Docker network and is reached through Caddy.
 
 List configured agents:
 
@@ -240,7 +240,7 @@ research-litellm-api.<AGENT_BASE_DOMAIN> {
 research-hermes-api.<AGENT_BASE_DOMAIN> {
   encode zstd gzip
   tls internal
-  reverse_proxy hermes-research:4000
+  reverse_proxy hermes-research:8642
 }
 ```
 
