@@ -348,8 +348,6 @@ chmod go-rwx frontend/.env
 Set at least these values in `frontend/.env`:
 
 - `OPENWEBUI_PUBLIC_URL`, for example `https://chat.example.com`
-- `OPENWEBUI_OPENAI_API_BASE_URL`, for example `https://research-hermes-api.example.com/v1`
-- `OPENWEBUI_OPENAI_API_KEY`, using the agent's `HERMES_<AGENT>_API_SERVER_KEY`
 - `CLOUDFLARE_TUNNEL_TOKEN`
 
 Start the frontend stack:
@@ -367,7 +365,7 @@ Service:  http://open-webui:8080
 
 The frontend Compose file intentionally has no `ports:` entries. Cloudflare reaches OpenWebUI through the `cloudflared` container on the Compose network. Keep Cloudflare Access enabled initially, even if OpenWebUI Google Auth is enabled, so unauthorized traffic is blocked before it reaches OpenWebUI.
 
-OpenWebUI reads provider environment variables on first launch. After that, connection settings are stored in its internal database. To change the Hermes connection later, use OpenWebUI's admin settings or recreate `frontend/data/open-webui`.
+Add Hermes or LiteLLM connections in OpenWebUI's admin settings. For Hermes, use the agent's OpenAI-compatible endpoint with `/v1`, for example `https://research-hermes-api.example.com/v1`, and the matching `HERMES_<AGENT>_API_SERVER_KEY`.
 
 ## Virtual Keys And Usage
 

@@ -5,8 +5,6 @@ services:
     image: ghcr.io/open-webui/open-webui:main
     restart: unless-stopped
     environment:
-      OPENAI_API_BASE_URL: ${OPENWEBUI_OPENAI_API_BASE_URL:?Set OPENWEBUI_OPENAI_API_BASE_URL in .env}
-      OPENAI_API_KEY: ${OPENWEBUI_OPENAI_API_KEY:?Set OPENWEBUI_OPENAI_API_KEY in .env}
       WEBUI_URL: ${OPENWEBUI_PUBLIC_URL:?Set OPENWEBUI_PUBLIC_URL in .env}
       ENABLE_SIGNUP: ${OPENWEBUI_ENABLE_SIGNUP:-false}
     volumes:
