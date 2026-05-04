@@ -26,6 +26,10 @@ hermes_key_var="HERMES_${agent_env}_LITELLM_KEY"
 litellm_host="$agent-litellm-api.example.com"
 hermes_host="$agent-hermes-api.example.com"
 
+if [ ! -f compose.agents.yaml ]; then
+  printf 'services: {}\n' >compose.agents.yaml
+fi
+
 if grep -q "^  $litellm_service:" compose.agents.yaml 2>/dev/null; then
   printf 'Agent already exists: %s\n' "$agent" >&2
   exit 1
@@ -52,6 +56,10 @@ cat >>"litellm/agents/$agent/config.yaml" <<EOF
 general_settings:
   master_key: os.environ/$litellm_master_var
 EOF
+
+if grep -q '^services: {}$' compose.agents.yaml; then
+  printf 'services:\n' >compose.agents.yaml
+fi
 
 cat >>compose.agents.yaml <<EOF
 
