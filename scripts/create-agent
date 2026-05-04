@@ -61,7 +61,7 @@ EOF
 cat >"agents/$agent/config/compose.yaml" <<EOF
 services:
   $litellm_service:
-    image: docker.litellm.ai/berriai/litellm-database:main-stable
+    image: ghcr.io/berriai/litellm-database:main-stable
     container_name: $agent-litellm
     restart: unless-stopped
     command: ["--config", "/app/config.yaml", "--port", "4000"]

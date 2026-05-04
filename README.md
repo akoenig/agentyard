@@ -113,6 +113,8 @@ This creates:
 - Postgres database `litellm_research`, if Postgres is running
 - Caddy config reload, if Caddy is running
 
+Generated LiteLLM services use `ghcr.io/berriai/litellm-database:main-stable`. This avoids relying on the `docker.litellm.ai` registry endpoint while still using LiteLLM's published database-enabled image.
+
 Add the generated hostnames to DNS or your local hosts file so they resolve to this machine:
 
 ```text
