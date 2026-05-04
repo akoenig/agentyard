@@ -8,6 +8,21 @@ Docker Compose setup for a personal agent stack:
 
 Services bind to `127.0.0.1` because this stack is expected to sit behind a reverse proxy.
 
+## Models
+
+LiteLLM is configured for ChatGPT subscription models using the `chatgpt/` provider route. The config includes the latest expected `gpt-5.5` names plus the `gpt-5.4` and `gpt-5.3` models currently shown in LiteLLM's ChatGPT provider docs.
+
+Configured models:
+
+- `chatgpt/gpt-5.5`
+- `chatgpt/gpt-5.5-pro`
+- `chatgpt/gpt-5.4`
+- `chatgpt/gpt-5.4-pro`
+- `chatgpt/gpt-5.3-codex`
+- `chatgpt/gpt-5.3-codex-spark`
+- `chatgpt/gpt-5.3-instant`
+- `chatgpt/gpt-5.3-chat-latest`
+
 ## Bootstrap
 
 1. Create the local environment file.
@@ -59,7 +74,7 @@ Create one key for Hermes:
 curl http://127.0.0.1:4000/key/generate \
   -H "Authorization: Bearer $LITELLM_MASTER_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"models":["chatgpt/gpt-5.4","chatgpt/gpt-5.4-pro","chatgpt/gpt-5.3-codex","chatgpt/gpt-5.3-codex-spark","chatgpt/gpt-5.3-instant","chatgpt/gpt-5.3-chat-latest"],"metadata":{"owner":"hermes"}}'
+  -d '{"models":["chatgpt/gpt-5.5","chatgpt/gpt-5.5-pro","chatgpt/gpt-5.4","chatgpt/gpt-5.4-pro","chatgpt/gpt-5.3-codex","chatgpt/gpt-5.3-codex-spark","chatgpt/gpt-5.3-instant","chatgpt/gpt-5.3-chat-latest"],"metadata":{"owner":"hermes"}}'
 ```
 
 Create one key for the other frontend:
@@ -68,7 +83,7 @@ Create one key for the other frontend:
 curl http://127.0.0.1:4000/key/generate \
   -H "Authorization: Bearer $LITELLM_MASTER_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"models":["chatgpt/gpt-5.4","chatgpt/gpt-5.4-pro","chatgpt/gpt-5.3-codex","chatgpt/gpt-5.3-codex-spark","chatgpt/gpt-5.3-instant","chatgpt/gpt-5.3-chat-latest"],"metadata":{"owner":"frontend"}}'
+  -d '{"models":["chatgpt/gpt-5.5","chatgpt/gpt-5.5-pro","chatgpt/gpt-5.4","chatgpt/gpt-5.4-pro","chatgpt/gpt-5.3-codex","chatgpt/gpt-5.3-codex-spark","chatgpt/gpt-5.3-instant","chatgpt/gpt-5.3-chat-latest"],"metadata":{"owner":"frontend"}}'
 ```
 
 Put the Hermes key into `.env` as `HERMES_LITELLM_KEY`, then start the full stack:
@@ -101,6 +116,29 @@ The host ports are intentionally bound to localhost:
 - Hermes dashboard: `127.0.0.1:9119`
 
 Terminate TLS and public access control in your reverse proxy. Do not expose LiteLLM publicly without authentication.
+
+An example Caddy config is available at `caddy/Caddyfile.example`. Replace the example domains and email before use:
+
+```caddyfile
+{
+  email admin@example.com
+}
+
+litellm.example.com {
+  encode zstd gzip
+  reverse_proxy 127.0.0.1:4000
+}
+
+hermes-api.example.com {
+  encode zstd gzip
+  reverse_proxy 127.0.0.1:8642
+}
+
+hermes.example.com {
+  encode zstd gzip
+  reverse_proxy 127.0.0.1:9119
+}
+```
 
 ## Data
 

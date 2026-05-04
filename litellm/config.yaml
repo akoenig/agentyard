@@ -1,4 +1,16 @@
 model_list:
+  - model_name: chatgpt/gpt-5.5
+    model_info:
+      mode: responses
+    litellm_params:
+      model: chatgpt/gpt-5.5
+
+  - model_name: chatgpt/gpt-5.5-pro
+    model_info:
+      mode: responses
+    litellm_params:
+      model: chatgpt/gpt-5.5-pro
+
   - model_name: chatgpt/gpt-5.4
     model_info:
       mode: responses
