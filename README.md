@@ -124,6 +124,8 @@ This creates:
 
 Generated LiteLLM services use `ghcr.io/berriai/litellm-database:main-stable`. This avoids relying on the `docker.litellm.ai` registry endpoint while still using LiteLLM's published database-enabled image.
 
+The generated LiteLLM config reads the master key from `LITELLM_MASTER_KEY` inside the container. The generated Compose file maps the agent-specific host value, for example `LITELLM_RESEARCH_MASTER_KEY`, into that container variable.
+
 Add the generated hostnames to DNS or your local hosts file so they resolve to this machine:
 
 ```text

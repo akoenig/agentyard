@@ -55,7 +55,7 @@ cp config/litellm/models.chatgpt.yaml "agents/$agent/config/litellm.yaml"
 cat >>"agents/$agent/config/litellm.yaml" <<EOF
 
 general_settings:
-  master_key: os.environ/$litellm_master_var
+  master_key: os.environ/LITELLM_MASTER_KEY
 EOF
 
 cat >"agents/$agent/config/compose.yaml" <<EOF
