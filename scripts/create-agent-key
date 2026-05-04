@@ -75,4 +75,4 @@ fi
 mv "$tmp_file" .env
 
 printf 'Stored %s in .env.\n' "$hermes_key_var"
-printf 'Next: docker compose -f compose.yaml -f agents/%s/compose.yaml up -d hermes-%s caddy\n' "$agent" "$agent"
+printf 'Next: docker compose -f compose.yaml -f agents/%s/config/compose.yaml up -d hermes-%s caddy\n' "$agent" "$agent"

@@ -40,19 +40,19 @@ random_key() {
 }
 
 mkdir -p \
-  "agents/$agent" \
-  "data/agents/$agent" \
-  "data/litellm/$agent"
-touch "data/agents/$agent/.gitkeep" "data/litellm/$agent/.gitkeep"
+  "agents/$agent/config" \
+  "agents/$agent/data/hermes" \
+  "agents/$agent/data/litellm"
+touch "agents/$agent/data/.gitkeep" "agents/$agent/data/hermes/.gitkeep" "agents/$agent/data/litellm/.gitkeep"
 
-cp litellm/models.chatgpt.yaml "agents/$agent/litellm-config.yaml"
-cat >>"agents/$agent/litellm-config.yaml" <<EOF
+cp litellm/models.chatgpt.yaml "agents/$agent/config/litellm.yaml"
+cat >>"agents/$agent/config/litellm.yaml" <<EOF
 
 general_settings:
   master_key: os.environ/$litellm_master_var
 EOF
 
-cat >"agents/$agent/compose.yaml" <<EOF
+cat >"agents/$agent/config/compose.yaml" <<EOF
 services:
   $litellm_service:
     image: docker.litellm.ai/berriai/litellm-database:main-stable
@@ -70,8 +70,8 @@ services:
       LITELLM_SALT_KEY: \${$litellm_salt_var}
       CHATGPT_TOKEN_DIR: /data/chatgpt
     volumes:
-      - ./agents/$agent/litellm-config.yaml:/app/config.yaml:ro
-      - ./data/litellm/$agent:/data
+      - ./agents/$agent/config/litellm.yaml:/app/config.yaml:ro
+      - ./agents/$agent/data/litellm:/data
 
   $hermes_service:
     image: nousresearch/hermes-agent:latest
@@ -86,11 +86,11 @@ services:
       OPENAI_API_BASE: http://$litellm_service:4000/v1
       OPENAI_API_KEY: \${$hermes_key_var:-}
     volumes:
-      - ./data/agents/$agent:/opt/data
+      - ./agents/$agent/data/hermes:/opt/data
     shm_size: 1g
 EOF
 
-cat >"agents/$agent/caddy.caddy" <<EOF
+cat >"agents/$agent/config/caddy.caddy" <<EOF
 $litellm_host {
   encode zstd gzip
   tls internal
@@ -126,4 +126,4 @@ fi
 printf 'Created agent %s.\n' "$agent"
 printf 'LiteLLM URL: https://%s\n' "$litellm_host"
 printf 'Hermes URL:   https://%s\n' "$hermes_host"
-printf 'Next: docker compose -f compose.yaml -f agents/%s/compose.yaml up -d caddy %s\n' "$agent" "$litellm_service"
+printf 'Next: docker compose -f compose.yaml -f agents/%s/config/compose.yaml up -d caddy %s\n' "$agent" "$litellm_service"
