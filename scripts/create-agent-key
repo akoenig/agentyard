@@ -32,10 +32,26 @@ eval "master_key=\${$master_var:-}"
 
 payload='{"models":["chatgpt/gpt-5.5","chatgpt/gpt-5.5-pro","chatgpt/gpt-5.4","chatgpt/gpt-5.4-pro","chatgpt/gpt-5.3-codex","chatgpt/gpt-5.3-codex-spark","chatgpt/gpt-5.3-instant","chatgpt/gpt-5.3-chat-latest"],"metadata":{"owner":"agent:'"$agent"'","type":"hermes-agent"}}'
 
-response=$(curl --silent --show-error --insecure "https://$litellm_host/key/generate" \
+response_file=".create-agent-key.response.$$"
+trap 'rm -f "$response_file"' EXIT INT TERM
+
+printf 'Generating LiteLLM key via https://%s/key/generate\n' "$litellm_host"
+http_status=$(curl --silent --show-error --insecure \
+  --output "$response_file" \
+  --write-out '%{http_code}' \
+  "https://$litellm_host/key/generate" \
   -H "Authorization: Bearer $master_key" \
   -H "Content-Type: application/json" \
   -d "$payload")
+
+response=$(cat "$response_file")
+case "$http_status" in
+  2*) ;;
+  *)
+    printf 'LiteLLM key generation failed with HTTP %s. Response body:\n%s\n' "$http_status" "$response" >&2
+    exit 1
+    ;;
+esac
 
 key=$(RESPONSE="$response" python3 - <<'PY'
 import json
@@ -75,6 +91,11 @@ else
 fi
 mv "$tmp_file" .env
 chmod go-rwx .env*
+
+if ! grep -q "^$hermes_key_var=sk-" .env; then
+  printf 'Failed to write %s to .env.\n' "$hermes_key_var" >&2
+  exit 1
+fi
 
 printf 'Stored %s in .env.\n' "$hermes_key_var"
 printf 'Next: docker compose -f compose.yaml -f agents/%s/config/compose.yaml up -d hermes-%s caddy\n' "$agent" "$agent"
