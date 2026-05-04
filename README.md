@@ -54,7 +54,7 @@ Agent LiteLLM configs are generated from `litellm/models.chatgpt.yaml`. The curr
 - `chatgpt/gpt-5.3-instant`
 - `chatgpt/gpt-5.3-chat-latest`
 
-## Bootstrap
+## Initial Setup
 
 1. Create the local environment file.
 
@@ -62,22 +62,41 @@ Agent LiteLLM configs are generated from `litellm/models.chatgpt.yaml`. The curr
 cp .env.example .env
 ```
 
-2. Edit `.env` and replace all `change-me` values. Keep LiteLLM master and salt keys starting with `sk-`.
+2. Edit `.env` and replace shared infrastructure values.
 
-3. Add the hostnames to DNS or your local hosts file so they resolve to this machine.
+Shared settings:
+
+- `POSTGRES_USER`
+- `POSTGRES_PASSWORD`
+- `CADDY_HTTP_PORT`
+- `CADDY_HTTPS_PORT`
+
+LiteLLM and Hermes credentials are agent-specific. For example, the preconfigured `personal` agent uses:
+
+- `LITELLM_PERSONAL_MASTER_KEY`
+- `LITELLM_PERSONAL_SALT_KEY`
+- `HERMES_PERSONAL_LITELLM_KEY`
+
+Keep LiteLLM master and salt keys starting with `sk-`.
+
+## Personal Agent Setup
+
+The repository includes a preconfigured `personal` agent. Its services are `litellm-personal` and `hermes-personal`.
+
+1. Add the personal agent hostnames to DNS or your local hosts file so they resolve to this machine.
 
 ```text
 personal-litellm-api.example.com
 personal-hermes-api.example.com
 ```
 
-4. Start shared infrastructure and the personal LiteLLM instance.
+2. Start shared infrastructure and the personal LiteLLM instance.
 
 ```bash
 docker compose -f compose.yaml -f compose.agents.yaml up -d caddy litellm-personal
 ```
 
-5. Watch the personal LiteLLM logs for the ChatGPT device-code login URL and complete authentication in a browser.
+3. Watch the personal LiteLLM logs for the ChatGPT device-code login URL and complete authentication in a browser.
 
 ```bash
 docker compose -f compose.yaml -f compose.agents.yaml logs -f litellm-personal
@@ -85,7 +104,7 @@ docker compose -f compose.yaml -f compose.agents.yaml logs -f litellm-personal
 
 The ChatGPT auth token for this agent is stored below `data/litellm/personal/chatgpt/` and survives container recreation.
 
-6. Generate the personal Hermes virtual key after OAuth succeeds.
+4. Generate the personal Hermes virtual key after OAuth succeeds.
 
 ```bash
 scripts/create-agent-key personal
@@ -93,7 +112,7 @@ scripts/create-agent-key personal
 
 This writes `HERMES_PERSONAL_LITELLM_KEY` into `.env`.
 
-7. Start the full stack.
+5. Start the full stack.
 
 ```bash
 docker compose -f compose.yaml -f compose.agents.yaml up -d
