@@ -1,14 +1,17 @@
 #!/usr/bin/env sh
 set -eu
 
-if [ ! -d caddy/agents ]; then
+if [ ! -d agents ]; then
   exit 0
 fi
 
-for route in caddy/agents/*.caddy; do
-  [ -e "$route" ] || exit 0
-  agent=$(basename "$route" .caddy)
+for agent_dir in agents/*; do
+  [ -d "$agent_dir" ] || exit 0
+  agent=$(basename "$agent_dir")
   [ "$agent" = "*" ] && continue
+  case "$agent" in
+    _*) continue ;;
+  esac
   printf '%s\n' "$agent"
   printf '  LiteLLM: https://%s-litellm-api.example.com\n' "$agent"
   printf '  Hermes:  https://%s-hermes-api.example.com\n' "$agent"

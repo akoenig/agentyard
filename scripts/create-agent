@@ -26,11 +26,7 @@ hermes_key_var="HERMES_${agent_env}_LITELLM_KEY"
 litellm_host="$agent-litellm-api.example.com"
 hermes_host="$agent-hermes-api.example.com"
 
-if [ ! -f compose.agents.yaml ]; then
-  printf 'services: {}\n' >compose.agents.yaml
-fi
-
-if grep -q "^  $litellm_service:" compose.agents.yaml 2>/dev/null; then
+if [ -d "agents/$agent" ]; then
   printf 'Agent already exists: %s\n' "$agent" >&2
   exit 1
 fi
@@ -44,25 +40,20 @@ random_key() {
 }
 
 mkdir -p \
+  "agents/$agent" \
   "data/agents/$agent" \
-  "data/litellm/$agent" \
-  "litellm/agents/$agent" \
-  caddy/agents
+  "data/litellm/$agent"
 touch "data/agents/$agent/.gitkeep" "data/litellm/$agent/.gitkeep"
 
-cp litellm/models.chatgpt.yaml "litellm/agents/$agent/config.yaml"
-cat >>"litellm/agents/$agent/config.yaml" <<EOF
+cp litellm/models.chatgpt.yaml "agents/$agent/litellm-config.yaml"
+cat >>"agents/$agent/litellm-config.yaml" <<EOF
 
 general_settings:
   master_key: os.environ/$litellm_master_var
 EOF
 
-if grep -q '^services: {}$' compose.agents.yaml; then
-  printf 'services:\n' >compose.agents.yaml
-fi
-
-cat >>compose.agents.yaml <<EOF
-
+cat >"agents/$agent/compose.yaml" <<EOF
+services:
   $litellm_service:
     image: docker.litellm.ai/berriai/litellm-database:main-stable
     container_name: $agent-litellm
@@ -79,7 +70,7 @@ cat >>compose.agents.yaml <<EOF
       LITELLM_SALT_KEY: \${$litellm_salt_var}
       CHATGPT_TOKEN_DIR: /data/chatgpt
     volumes:
-      - ./litellm/agents/$agent/config.yaml:/app/config.yaml:ro
+      - ./agents/$agent/litellm-config.yaml:/app/config.yaml:ro
       - ./data/litellm/$agent:/data
 
   $hermes_service:
@@ -99,7 +90,7 @@ cat >>compose.agents.yaml <<EOF
     shm_size: 1g
 EOF
 
-cat >"caddy/agents/$agent.caddy" <<EOF
+cat >"agents/$agent/caddy.caddy" <<EOF
 $litellm_host {
   encode zstd gzip
   tls internal
@@ -127,9 +118,12 @@ if command -v docker >/dev/null 2>&1; then
   if docker compose ps postgres >/dev/null 2>&1; then
     docker compose exec -T postgres createdb -U "${POSTGRES_USER:-litellm}" "$db_name" 2>/dev/null || true
   fi
+  if docker compose ps caddy >/dev/null 2>&1; then
+    docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile 2>/dev/null || true
+  fi
 fi
 
 printf 'Created agent %s.\n' "$agent"
 printf 'LiteLLM URL: https://%s\n' "$litellm_host"
 printf 'Hermes URL:   https://%s\n' "$hermes_host"
-printf 'Next: docker compose -f compose.yaml -f compose.agents.yaml up -d caddy %s\n' "$litellm_service"
+printf 'Next: docker compose -f compose.yaml -f agents/%s/compose.yaml up -d caddy %s\n' "$agent" "$litellm_service"

@@ -1,1 +1,1 @@
-import /etc/caddy/agents/*.caddy
+import /etc/caddy/agents/*/caddy.caddy

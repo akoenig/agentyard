@@ -10,7 +10,7 @@ services:
       - "${CADDY_HTTPS_PORT:-443}:443"
     volumes:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./caddy/agents:/etc/caddy/agents:ro
+      - ./agents:/etc/caddy/agents:ro
       - ./data/caddy/data:/data
       - ./data/caddy/config:/config
 
