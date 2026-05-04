@@ -116,6 +116,12 @@ OPENAI_API_KEY=$HERMES_PERSONAL_LITELLM_KEY
 
 ## Creating Agents
 
+Make sure Postgres is running before creating a new agent so the script can create that agent's LiteLLM database:
+
+```bash
+docker compose -f compose.yaml -f compose.agents.yaml up -d postgres
+```
+
 Create an additional isolated agent with:
 
 ```bash
@@ -131,6 +137,12 @@ This creates:
 - `data/litellm/research/`
 - `data/agents/research/`
 - `.env` entries for `LITELLM_RESEARCH_MASTER_KEY`, `LITELLM_RESEARCH_SALT_KEY`, and `HERMES_RESEARCH_LITELLM_KEY`
+
+If Postgres was not running when `scripts/create-agent` ran, create the database manually before starting that agent's LiteLLM:
+
+```bash
+docker compose -f compose.yaml -f compose.agents.yaml exec postgres createdb -U litellm litellm_research
+```
 
 Then start that agent's LiteLLM and complete ChatGPT OAuth:
 
@@ -162,6 +174,8 @@ List configured agents:
 ```bash
 scripts/list-agents
 ```
+
+The helper scripts use standard POSIX shell tools. `scripts/create-agent-key` also requires `curl` and `python3` to call LiteLLM and extract the generated key from the JSON response.
 
 ## Local Caddy
 
