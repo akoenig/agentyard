@@ -29,6 +29,7 @@ hermes_service="hermes-$agent"
 litellm_master_var="LITELLM_${agent_env}_MASTER_KEY"
 litellm_salt_var="LITELLM_${agent_env}_SALT_KEY"
 hermes_key_var="HERMES_${agent_env}_LITELLM_KEY"
+hermes_api_key_var="HERMES_${agent_env}_API_SERVER_KEY"
 
 if [ -f .env ]; then
   set -a
@@ -51,7 +52,8 @@ if [ -f .env ]; then
   grep -v -e "^# Agent: $agent$" \
     -e "^$litellm_master_var=" \
     -e "^$litellm_salt_var=" \
-    -e "^$hermes_key_var=" .env >"$tmp_file" || true
+    -e "^$hermes_key_var=" \
+    -e "^$hermes_api_key_var=" .env >"$tmp_file" || true
   mv "$tmp_file" .env
   chmod go-rwx .env*
 fi

@@ -119,6 +119,7 @@ This creates:
 - `agents/research/data/litellm/`
 - `agents/research/data/hermes/`
 - `.env` entries for `LITELLM_RESEARCH_MASTER_KEY`, `LITELLM_RESEARCH_SALT_KEY`, and `HERMES_RESEARCH_LITELLM_KEY`
+- `.env` entry for `HERMES_RESEARCH_API_SERVER_KEY`, used as the bearer token for the Hermes API server
 - Postgres database `litellm_research`, if Postgres is running
 - Caddy config reload, if Caddy is running
 
@@ -167,6 +168,15 @@ Run Hermes setup for that agent if needed:
 ```bash
 docker compose -f compose.yaml -f agents/research/config/compose.yaml run --rm hermes-research setup
 ```
+
+Test the Hermes API server:
+
+```bash
+curl --insecure "https://research-hermes-api.$AGENT_BASE_DOMAIN/health" \
+  -H "Authorization: Bearer $HERMES_RESEARCH_API_SERVER_KEY"
+```
+
+Hermes' OpenAI-compatible API server is enabled in the generated Compose file with `API_SERVER_ENABLED=true`, `API_SERVER_HOST=0.0.0.0`, and `API_SERVER_PORT=8642`. The port is only exposed on the internal Docker network and is reached through Caddy.
 
 List configured agents:
 

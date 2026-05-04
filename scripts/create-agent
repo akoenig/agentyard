@@ -29,6 +29,7 @@ hermes_service="hermes-$agent"
 litellm_master_var="LITELLM_${agent_env}_MASTER_KEY"
 litellm_salt_var="LITELLM_${agent_env}_SALT_KEY"
 hermes_key_var="HERMES_${agent_env}_LITELLM_KEY"
+hermes_api_key_var="HERMES_${agent_env}_API_SERVER_KEY"
 litellm_host="$agent-litellm-api.$agent_base_domain"
 hermes_host="$agent-hermes-api.$agent_base_domain"
 
@@ -91,6 +92,10 @@ services:
     environment:
       OPENAI_API_BASE: http://$litellm_service:4000/v1
       OPENAI_API_KEY: \${$hermes_key_var:-}
+      API_SERVER_ENABLED: "true"
+      API_SERVER_HOST: 0.0.0.0
+      API_SERVER_PORT: "8642"
+      API_SERVER_KEY: \${$hermes_api_key_var}
     volumes:
       - ./agents/$agent/data/hermes:/opt/data
     shm_size: 1g
@@ -118,6 +123,7 @@ if ! grep -q "^$litellm_master_var=" .env; then
     printf '%s=%s\n' "$litellm_master_var" "$(random_key)"
     printf '%s=%s\n' "$litellm_salt_var" "$(random_key)"
     printf '%s=\n' "$hermes_key_var"
+    printf '%s=%s\n' "$hermes_api_key_var" "$(random_key)"
   } >>.env
   chmod go-rwx .env*
 fi
