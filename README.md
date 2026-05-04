@@ -124,17 +124,17 @@ An example Caddy config is available at `caddy/Caddyfile.example`. Replace the e
   email admin@example.com
 }
 
-litellm.example.com {
+hermy-litellm-api.example.com {
   encode zstd gzip
   reverse_proxy 127.0.0.1:4000
 }
 
-hermes-api.example.com {
+hermy-hermes-api.example.com {
   encode zstd gzip
   reverse_proxy 127.0.0.1:8642
 }
 
-hermes.example.com {
+hermy-hermes-dashboard.example.com {
   encode zstd gzip
   reverse_proxy 127.0.0.1:9119
 }
