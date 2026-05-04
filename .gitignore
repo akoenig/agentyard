@@ -9,8 +9,6 @@ agents/*/data/**
 !agents/*/data/litellm/.gitkeep
 !data/
 !data/.gitkeep
-!data/postgres/
-!data/postgres/.gitkeep
 !data/caddy/
 !data/caddy/.gitkeep
 !data/caddy/config/
