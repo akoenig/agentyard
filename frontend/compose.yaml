@@ -1,0 +1,22 @@
+name: ${FRONTEND_COMPOSE_PROJECT_NAME:-agent-frontend}
+
+services:
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    restart: unless-stopped
+    environment:
+      OPENAI_API_BASE_URL: ${OPENWEBUI_OPENAI_API_BASE_URL:?Set OPENWEBUI_OPENAI_API_BASE_URL in .env}
+      OPENAI_API_KEY: ${OPENWEBUI_OPENAI_API_KEY:?Set OPENWEBUI_OPENAI_API_KEY in .env}
+      WEBUI_URL: ${OPENWEBUI_PUBLIC_URL:?Set OPENWEBUI_PUBLIC_URL in .env}
+      ENABLE_SIGNUP: ${OPENWEBUI_ENABLE_SIGNUP:-false}
+    volumes:
+      - ./data/open-webui:/app/backend/data
+    expose:
+      - "8080"
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN:?Set CLOUDFLARE_TUNNEL_TOKEN in .env}
+    depends_on:
+      - open-webui

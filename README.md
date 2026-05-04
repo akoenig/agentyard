@@ -18,7 +18,14 @@ Per agent:
 - One ChatGPT OAuth token directory, allowing each agent to use its own ChatGPT subscription
 - One Hermes data directory mounted at `/opt/data`
 
+Optional frontend:
+
+- OpenWebUI deployment under `frontend/`
+- Cloudflare Tunnel for `https://chat.<domain>` without publishing host ports
+
 No agent is included by default. Always create agents with `scripts/create-agent`.
+
+OpenWebUI is optional and is configured separately in `frontend/`. See `frontend/README.md`.
 
 ## Architecture
 
