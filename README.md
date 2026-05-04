@@ -348,6 +348,9 @@ chmod go-rwx frontend/.env*
 Set at least these values in `frontend/.env`:
 
 - `OPENWEBUI_PUBLIC_URL`, for example `https://chat.example.com`
+- `OPENWEBUI_SECRET_KEY`, generated with `openssl rand -hex 32`
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET`
 - `CLOUDFLARE_TUNNEL_TOKEN`
 
 Start the frontend stack:
@@ -364,6 +367,18 @@ Service:  http://open-webui:8080
 ```
 
 The frontend Compose file intentionally has no `ports:` entries. Cloudflare reaches OpenWebUI through the `cloudflared` container on the Compose network. Keep Cloudflare Access enabled initially, even if OpenWebUI Google Auth is enabled, so unauthorized traffic is blocked before it reaches OpenWebUI.
+
+Google Auth for OpenFormation:
+
+1. Create a Google OAuth client with application type `Web application`.
+2. Configure the OAuth consent screen for the OpenFormation Google Workspace. Use an internal app if available.
+3. Add the authorized redirect URI matching `OPENWEBUI_PUBLIC_URL` exactly, for example `https://chat.example.com/oauth/google/callback`.
+4. Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in `frontend/.env`.
+5. Keep `OPENID_PROVIDER_URL=https://accounts.google.com/.well-known/openid-configuration`.
+6. Keep `GOOGLE_OAUTH_AUTHORIZE_PARAMS={"hd":"openformation.io"}` to hint Google toward the OpenFormation workspace.
+7. Recreate OpenWebUI after changing OAuth values with `docker compose --env-file frontend/.env -f frontend/compose.yaml up -d --force-recreate open-webui`.
+
+The Google `hd` parameter is not a complete security boundary by itself. Use Cloudflare Access with an `@openformation.io` email-domain policy or a Google Workspace internal OAuth app as the actual access restriction.
 
 Add Hermes or LiteLLM connections in OpenWebUI's admin settings. For Hermes, use the agent's OpenAI-compatible endpoint with `/v1`, for example `https://research-hermes-api.example.com/v1`, and the matching `HERMES_<AGENT>_API_SERVER_KEY`.
 
