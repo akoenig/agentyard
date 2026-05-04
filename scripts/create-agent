@@ -45,7 +45,7 @@ mkdir -p \
   "agents/$agent/data/litellm"
 touch "agents/$agent/data/.gitkeep" "agents/$agent/data/hermes/.gitkeep" "agents/$agent/data/litellm/.gitkeep"
 
-cp litellm/models.chatgpt.yaml "agents/$agent/config/litellm.yaml"
+cp config/litellm/models.chatgpt.yaml "agents/$agent/config/litellm.yaml"
 cat >>"agents/$agent/config/litellm.yaml" <<EOF
 
 general_settings:

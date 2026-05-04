@@ -53,7 +53,7 @@ litellm_home
 
 ## Models
 
-Agent LiteLLM configs are generated from `litellm/models.chatgpt.yaml`. The current model list includes:
+Agent LiteLLM configs are generated from `config/litellm/models.chatgpt.yaml`. The current model list includes:
 
 - `chatgpt/gpt-5.5`
 - `chatgpt/gpt-5.5-pro`
