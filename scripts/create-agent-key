@@ -73,6 +73,7 @@ else
   printf '%s=%s\n' "$hermes_key_var" "$key" >>"$tmp_file"
 fi
 mv "$tmp_file" .env
+chmod go-rwx .env*
 
 printf 'Stored %s in .env.\n' "$hermes_key_var"
 printf 'Next: docker compose -f compose.yaml -f agents/%s/config/compose.yaml up -d hermes-%s caddy\n' "$agent" "$agent"

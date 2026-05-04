@@ -105,6 +105,7 @@ $hermes_host {
 EOF
 
 touch .env
+chmod go-rwx .env*
 if ! grep -q "^$litellm_master_var=" .env; then
   {
     printf '\n# Agent: %s\n' "$agent"
@@ -112,6 +113,7 @@ if ! grep -q "^$litellm_master_var=" .env; then
     printf '%s=%s\n' "$litellm_salt_var" "$(random_key)"
     printf '%s=\n' "$hermes_key_var"
   } >>.env
+  chmod go-rwx .env*
 fi
 
 set -a

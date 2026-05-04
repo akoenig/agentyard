@@ -70,6 +70,7 @@ Agent LiteLLM configs are generated from `config/litellm/models.chatgpt.yaml`. T
 
 ```bash
 cp .env.example .env
+chmod go-rwx .env*
 ```
 
 2. Edit `.env` and replace shared infrastructure values.
