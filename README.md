@@ -239,7 +239,7 @@ Caddy stores its internal CA and certificates under `data/caddy/`.
 
 ## Front Reverse Proxy
 
-If another Caddy instance sits in front of this local Caddy, proxy to the local Caddy over HTTPS and preserve the agent hostname. The local Caddy routes by `Host` header.
+If another Caddy instance sits in front of this local Caddy, proxy to the local Caddy over HTTPS and preserve the agent hostname. The local Caddy routes by `Host` header, and the upstream TLS SNI must also match the agent hostname when proxying to the local Caddy by IP address.
 
 Recommended: copy the local Caddy root CA certificate from the agent host to the front proxy host:
 
@@ -285,6 +285,7 @@ research-litellm-api.example.com {
     header_up Host research-litellm-api.example.com
 
     transport http {
+      tls_server_name research-litellm-api.example.com
       tls_insecure_skip_verify
     }
   }
@@ -295,6 +296,7 @@ research-hermes-api.example.com {
     header_up Host research-hermes-api.example.com
 
     transport http {
+      tls_server_name research-hermes-api.example.com
       tls_insecure_skip_verify
     }
   }
