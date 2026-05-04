@@ -4,9 +4,9 @@ Docker Compose setup for a personal agent stack:
 
 - LiteLLM proxy backed by Postgres for virtual keys
 - ChatGPT subscription/Codex models through LiteLLM OAuth device flow
-- Hermes Agent gateway and dashboard
+- Hermes Agent gateway
 
-Services bind to `127.0.0.1` because this stack is expected to sit behind a reverse proxy.
+Services bind to `HOST_BIND_ADDRESS`, which defaults to `0.0.0.0` because Caddy is expected to run on a different host. Restrict access to the Caddy host with a firewall.
 
 ## Models
 
@@ -109,15 +109,14 @@ OPENAI_API_KEY=$HERMES_LITELLM_KEY
 
 ## Reverse Proxy
 
-The host ports are intentionally bound to localhost:
+The host ports are bound to `HOST_BIND_ADDRESS` so a Caddy instance on another host can reach them:
 
-- LiteLLM: `127.0.0.1:4000`
-- Hermes gateway: `127.0.0.1:8642`
-- Hermes dashboard: `127.0.0.1:9119`
+- LiteLLM: `$HOST_BIND_ADDRESS:4000`
+- Hermes gateway: `$HOST_BIND_ADDRESS:8642`
 
-Terminate TLS and public access control in your reverse proxy. Do not expose LiteLLM publicly without authentication.
+Terminate TLS and public access control in Caddy. Do not expose these ports broadly; firewall them so only the Caddy host can connect.
 
-An example Caddy config is available at `caddy/Caddyfile.example`. Replace the example domains and email before use:
+An example Caddy config is available at `caddy/Caddyfile.example`. Replace the example domains, email, and `personal-agent-host.example.com` upstream before use:
 
 ```caddyfile
 {
@@ -126,17 +125,12 @@ An example Caddy config is available at `caddy/Caddyfile.example`. Replace the e
 
 hermy-litellm-api.example.com {
   encode zstd gzip
-  reverse_proxy 127.0.0.1:4000
+  reverse_proxy personal-agent-host.example.com:4000
 }
 
 hermy-hermes-api.example.com {
   encode zstd gzip
-  reverse_proxy 127.0.0.1:8642
-}
-
-hermy-hermes-dashboard.example.com {
-  encode zstd gzip
-  reverse_proxy 127.0.0.1:9119
+  reverse_proxy personal-agent-host.example.com:8642
 }
 ```
 

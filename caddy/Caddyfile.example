@@ -4,15 +4,10 @@
 
 hermy-litellm-api.example.com {
   encode zstd gzip
-  reverse_proxy 127.0.0.1:4000
+  reverse_proxy personal-agent-host.example.com:4000
 }
 
 hermy-hermes-api.example.com {
   encode zstd gzip
-  reverse_proxy 127.0.0.1:8642
-}
-
-hermy-hermes-dashboard.example.com {
-  encode zstd gzip
-  reverse_proxy 127.0.0.1:9119
+  reverse_proxy personal-agent-host.example.com:8642
 }
