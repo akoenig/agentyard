@@ -25,14 +25,11 @@ fi
 agent_base_domain=${AGENT_BASE_DOMAIN:-example.com}
 db_name="litellm_$(printf '%s' "$agent" | tr '-' '_')"
 litellm_service="$agent-litellm"
-hermes_service="$agent-hermes"
 webui_service="$agent-hermes-webui"
 agent_network="$agent-agent"
-agent_src_volume="$agent-hermes-agent-src"
 litellm_master_var="LITELLM_${agent_env}_MASTER_KEY"
 litellm_salt_var="LITELLM_${agent_env}_SALT_KEY"
 hermes_key_var="HERMES_${agent_env}_LITELLM_KEY"
-hermes_api_key_var="HERMES_${agent_env}_API_SERVER_KEY"
 webui_password_var="HERMES_${agent_env}_WEBUI_PASSWORD"
 webui_host="$agent.$agent_base_domain"
 
@@ -53,14 +50,16 @@ mkdir -p \
   "agents/$agent/config" \
   "agents/$agent/data/hermes" \
   "agents/$agent/data/litellm" \
-  "agents/$agent/data/webui" \
   "agents/$agent/data/workspace"
 touch \
   "agents/$agent/data/.gitkeep" \
   "agents/$agent/data/hermes/.gitkeep" \
   "agents/$agent/data/litellm/.gitkeep" \
-  "agents/$agent/data/webui/.gitkeep" \
   "agents/$agent/data/workspace/.gitkeep"
+
+container_uid=${UID:-1000}
+container_gid=${GID:-1000}
+chown -R "$container_uid:$container_gid" "agents/$agent/data" 2>/dev/null || true
 
 cp config/litellm/models.chatgpt.yaml "agents/$agent/config/litellm.yaml"
 cat >>"agents/$agent/config/litellm.yaml" <<EOF
@@ -94,39 +93,15 @@ services:
       - db
       - egress
 
-  $hermes_service:
-    image: nousresearch/hermes-agent:latest
-    container_name: $hermes_service
-    restart: unless-stopped
-    command: gateway run
-    depends_on:
-      - $litellm_service
-    expose:
-      - "8642"
-    environment:
-      HERMES_HOME: /opt/data
-      HERMES_UID: \${UID:-1000}
-      HERMES_GID: \${GID:-1000}
-      OPENAI_BASE_URL: http://$litellm_service:4000/v1
-      OPENAI_API_KEY: \${$hermes_key_var:-}
-      API_SERVER_ENABLED: "true"
-      API_SERVER_HOST: 0.0.0.0
-      API_SERVER_PORT: "8642"
-      API_SERVER_KEY: \${$hermes_api_key_var}
-    volumes:
-      - ./agents/$agent/data/hermes:/opt/data
-      - $agent_src_volume:/opt/hermes
-    shm_size: 1g
-    networks:
-      - $agent_network
-      - egress
-
   $webui_service:
-    image: ghcr.io/nesquena/hermes-webui:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.hermes-runtime
+    image: personal-agent-hermes-runtime:latest
     container_name: $webui_service
     restart: unless-stopped
     depends_on:
-      - $hermes_service
+      - $litellm_service
     expose:
       - "8787"
     environment:
@@ -134,8 +109,8 @@ services:
       HERMES_WEBUI_PORT: "8787"
       HERMES_WEBUI_PASSWORD: \${$webui_password_var}
       HERMES_HOME: /home/hermeswebui/.hermes
-      HERMES_WEBUI_AGENT_DIR: /home/hermeswebui/.hermes/hermes-agent
-      HERMES_WEBUI_STATE_DIR: /home/hermeswebui/webui-state
+      HERMES_WEBUI_AGENT_DIR: /opt/hermes
+      HERMES_WEBUI_STATE_DIR: /home/hermeswebui/.hermes/webui
       HERMES_WEBUI_DEFAULT_WORKSPACE: /workspace
       OPENAI_BASE_URL: http://$litellm_service:4000/v1
       OPENAI_API_KEY: \${$hermes_key_var:-}
@@ -143,8 +118,6 @@ services:
       WANTED_GID: \${GID:-1000}
     volumes:
       - ./agents/$agent/data/hermes:/home/hermeswebui/.hermes
-      - $agent_src_volume:/home/hermeswebui/.hermes/hermes-agent
-      - ./agents/$agent/data/webui:/home/hermeswebui/webui-state
       - ./agents/$agent/data/workspace:/workspace
     networks:
       - $agent_network
@@ -154,9 +127,6 @@ services:
 networks:
   $agent_network:
     internal: true
-
-volumes:
-  $agent_src_volume:
 EOF
 
 touch .env
@@ -167,7 +137,6 @@ if ! grep -q "^$litellm_master_var=" .env; then
     printf '%s=%s\n' "$litellm_master_var" "$(random_key)"
     printf '%s=%s\n' "$litellm_salt_var" "$(random_key)"
     printf '%s=\n' "$hermes_key_var"
-    printf '%s=%s\n' "$hermes_api_key_var" "$(random_key)"
     printf '%s=%s\n' "$webui_password_var" "$(random_key)"
   } >>.env
   chmod go-rwx .env*
@@ -186,4 +155,4 @@ fi
 printf 'Created agent %s.\n' "$agent"
 printf 'WebUI URL: https://%s\n' "$webui_host"
 printf 'Cloudflare Tunnel service: http://%s:8787\n' "$webui_service"
-printf 'Next: docker compose -f compose.yaml -f agents/%s/config/compose.yaml up -d postgres cloudflared %s\n' "$agent" "$litellm_service"
+printf 'Next: docker compose -f compose.yaml -f agents/%s/config/compose.yaml up -d postgres cloudflared %s %s\n' "$agent" "$litellm_service" "$webui_service"

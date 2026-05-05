@@ -1,6 +1,6 @@
 # Personal Agent Infrastructure
 
-Docker Compose infrastructure for running multiple isolated Hermes agents with one Hermes WebUI per agent.
+Docker Compose infrastructure for running multiple isolated Hermes runtimes with one Hermes WebUI per agent.
 
 Public access is WebUI-only through Cloudflare Tunnel:
 
@@ -12,7 +12,7 @@ Browser
   -> <agent>-hermes-webui:8787
 ```
 
-LiteLLM and Hermes APIs are internal-only and are not exposed publicly.
+LiteLLM is internal-only and is not exposed publicly.
 
 ## Architecture
 
@@ -24,8 +24,7 @@ Shared services in `compose.yaml`:
 Per-agent services in `agents/<agent>/config/compose.yaml`:
 
 - `<agent>-litellm`, private LiteLLM proxy
-- `<agent>-hermes`, private Hermes gateway/API server
-- `<agent>-hermes-webui`, public user-facing UI reached only through Cloudflare Tunnel
+- `<agent>-hermes-webui`, single Hermes runtime and public user-facing UI reached only through Cloudflare Tunnel
 
 Per-agent runtime state lives under `agents/<agent>/data/`:
 
@@ -37,15 +36,14 @@ agents/hermy/
   data/
     hermes/
     litellm/
-    webui/
     workspace/
 ```
 
 No agent is included by default. Always create agents with `scripts/create-agent`.
 
-Hermes WebUI's Docker two-container mode still imports and runs Hermes agent Python code inside the WebUI container. Each generated agent therefore shares a Docker volume named `<agent>-hermes-agent-src` between `<agent>-hermes` and `<agent>-hermes-webui`; without that volume, WebUI chat fails with `AIAgent not available -- check that hermes-agent is on sys.path`.
+Each generated WebUI container is built from `Dockerfile.hermes-runtime`, which layers Hermes Agent source from `nousresearch/hermes-agent:latest` into the upstream Hermes WebUI image at `/opt/hermes`. This follows the upstream single-container model: WebUI chat, tools, sessions, memory, and workspace access all run in the same container.
 
-The Hermes agent and Hermes WebUI containers also share the same per-agent Hermes home directory. The generated compose file sets both containers to the same `UID` and `GID` values, defaulting to `1000`, to avoid permission conflicts on `.env`, SQLite databases, sessions, skills, and memory files.
+The generated compose file sets the runtime container to the configured `UID` and `GID` values, defaulting to `1000`, to keep host-mounted workspace files writable.
 
 ## Networking
 
@@ -54,9 +52,9 @@ The stack uses separate Docker networks to reduce lateral access:
 - `db`, internal network for Postgres and LiteLLM services
 - `tunnel`, internal network for Cloudflare Tunnel and Hermes WebUIs
 - `egress`, normal bridge network for services that need Internet access
-- `<agent>-agent`, internal per-agent network for that agent's LiteLLM, Hermes, and WebUI
+- `<agent>-agent`, internal per-agent network for that agent's LiteLLM and Hermes WebUI runtime
 
-Hermes and LiteLLM are attached to `egress` because they need outbound Internet access. Cloudflared is attached to `egress` to reach Cloudflare. Cloudflared is not attached to the per-agent private networks, so it can only reach each WebUI over `tunnel`.
+Hermes WebUI runtime and LiteLLM are attached to `egress` because they need outbound Internet access. Cloudflared is attached to `egress` to reach Cloudflare. Cloudflared is not attached to the per-agent private networks, so it can only reach each WebUI over `tunnel`.
 
 ## Initial Setup
 
@@ -100,16 +98,14 @@ This creates:
 - `agents/hermy/config/litellm.yaml`
 - `agents/hermy/data/hermes/`
 - `agents/hermy/data/litellm/`
-- `agents/hermy/data/webui/`
 - `agents/hermy/data/workspace/`
 - `.env` entries for LiteLLM, Hermes, and Hermes WebUI secrets
 - Postgres database `litellm_hermy`, if Postgres is running
-- Docker volume `hermy-hermes-agent-src`, used to expose the Hermes agent source to Hermes WebUI
 
 Start the agent:
 
 ```bash
-docker compose -f compose.yaml -f agents/hermy/config/compose.yaml up -d postgres cloudflared hermy-litellm hermy-hermes hermy-hermes-webui
+docker compose -f compose.yaml -f agents/hermy/config/compose.yaml up -d postgres cloudflared hermy-litellm hermy-hermes-webui
 ```
 
 Create the Hermes LiteLLM virtual key after LiteLLM is running and ChatGPT/provider setup is complete:
@@ -118,15 +114,15 @@ Create the Hermes LiteLLM virtual key after LiteLLM is running and ChatGPT/provi
 scripts/create-agent-key hermy
 ```
 
-Then recreate Hermes and WebUI so they pick up the generated LiteLLM key:
+Then recreate the Hermes WebUI runtime so it picks up the generated LiteLLM key:
 
 ```bash
-docker compose -f compose.yaml -f agents/hermy/config/compose.yaml up -d --force-recreate hermy-hermes hermy-hermes-webui
+docker compose -f compose.yaml -f agents/hermy/config/compose.yaml up -d --force-recreate hermy-hermes-webui
 ```
 
 ## Hermes Agent Setup
 
-Each agent's Hermes containers use that agent's private LiteLLM service as their OpenAI-compatible provider.
+Each agent's Hermes WebUI runtime uses that agent's private LiteLLM service as its OpenAI-compatible provider.
 
 For `hermy`, the internal LiteLLM API endpoint is:
 
@@ -140,7 +136,7 @@ For any agent, use:
 http://<agent>-litellm:4000/v1
 ```
 
-The generated compose file wires this into Hermes and Hermes WebUI:
+The generated compose file wires this into Hermes WebUI:
 
 ```text
 OPENAI_BASE_URL=http://hermy-litellm:4000/v1
@@ -149,10 +145,10 @@ OPENAI_API_KEY=${HERMES_HERMY_LITELLM_KEY}
 
 `LITELLM_HERMY_MASTER_KEY` is the LiteLLM admin/master key. Do not configure Hermes with it. `HERMES_HERMY_LITELLM_KEY` is the LiteLLM virtual key created for Hermes by `scripts/create-agent-key hermy`.
 
-After creating or changing the Hermes LiteLLM key, recreate Hermes and WebUI:
+After creating or changing the Hermes LiteLLM key, recreate Hermes WebUI:
 
 ```bash
-docker compose -f compose.yaml -f agents/hermy/config/compose.yaml up -d --force-recreate hermy-hermes hermy-hermes-webui
+docker compose -f compose.yaml -f agents/hermy/config/compose.yaml up -d --force-recreate hermy-hermes-webui
 ```
 
 ## Cloudflare Tunnel
@@ -230,7 +226,6 @@ Runtime contents are ignored by git. Important paths:
 - `data/postgres/`, shared Postgres data
 - `agents/<agent>/data/hermes/`, Hermes state
 - `agents/<agent>/data/litellm/`, LiteLLM runtime data and provider tokens
-- `agents/<agent>/data/webui/`, Hermes WebUI state
 - `agents/<agent>/data/workspace/`, default WebUI workspace
 
 Keep `.env*` files restricted:
