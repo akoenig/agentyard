@@ -46,7 +46,7 @@ Scheduled jobs and reminders require Hermes Agent's gateway loop. Each generated
 
 WebUI also sets `HERMES_EXEC_ASK=1` so Hermes Agent exposes the `cronjob` tool during browser chats. Without that environment flag, prompts like "remind me in 10 minutes" may not be able to create scheduled jobs from WebUI chat, even though the Cron panel API is present.
 
-Cron jobs created from WebUI browser chats do not have a messaging-platform origin like Telegram or Discord, so Hermes stores their output locally by default instead of posting a new message back into the original chat. Generated agents install a WebUI extension that polls `/api/crons/recent` and raises browser notifications for completed reminders when the browser allows notifications. Full run output is available from the WebUI Tasks/Cron panel.
+Cron jobs created from WebUI browser chats do not have a messaging-platform origin like Telegram or Discord, so Hermes stores their output locally by default instead of posting a new message back into the original chat. Full run output is available from the WebUI Tasks/Cron panel.
 
 Hermes WebUI expects Hermes Agent source in the mounted Hermes home. `scripts/create-agent` clones `https://github.com/NousResearch/hermes-agent.git` into `agents/<agent>/data/hermes/hermes-agent`, and the WebUI startup installs Hermes Agent from that checkout.
 
@@ -116,7 +116,6 @@ This creates:
 - `agents/hermy/data/hermes/hermes-agent/`
 - `agents/hermy/data/hermes/profiles/hermy/config.yaml`
 - `agents/hermy/data/hermes/webui/settings.json`
-- `agents/hermy/data/hermes/webui/extensions/default-preferences.js`
 - `agents/hermy/data/workspace/`
 - empty `.env` entry for the Hermes WebUI password, disabled by default because Cloudflare Access is expected to protect the hostname
 
@@ -176,8 +175,6 @@ Generated agents also preseed WebUI defaults:
 - notification sound enabled
 - browser notifications enabled, subject to the browser permission prompt
 - token usage visible after responses
-- Text-to-Speech response buttons enabled via a same-origin WebUI extension
-- hands-free voice mode button enabled via the same extension
 
 ### 4. Verify Workspace Mount
 

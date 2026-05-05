@@ -62,7 +62,6 @@ mkdir -p \
   "agents/$agent/data/hermes/profiles/$agent/skills" \
   "agents/$agent/data/hermes/profiles/$agent/skins" \
   "agents/$agent/data/hermes/profiles/$agent/workspace" \
-  "agents/$agent/data/hermes/webui/extensions" \
   "agents/$agent/data/workspace"
 touch \
   "agents/$agent/data/.gitkeep" \
@@ -97,60 +96,6 @@ cat >"agents/$agent/data/hermes/webui/settings.json" <<EOF
   "notifications_enabled": true,
   "show_token_usage": true
 }
-EOF
-
-cat >"agents/$agent/data/hermes/webui/extensions/default-preferences.js" <<'EOF'
-(function () {
-  const defaults = {
-    'hermes-tts-enabled': 'true',
-    'hermes-voice-mode-button': 'true'
-  };
-
-  for (const [key, value] of Object.entries(defaults)) {
-    if (localStorage.getItem(key) === null) {
-      localStorage.setItem(key, value);
-    }
-  }
-
-  if (typeof window._applyTtsEnabled === 'function') {
-    window._applyTtsEnabled(localStorage.getItem('hermes-tts-enabled') === 'true');
-  }
-  if (typeof window._applyVoiceModePref === 'function') {
-    window._applyVoiceModePref();
-  }
-
-  let cronSince = Date.now() / 1000;
-  async function pollCronCompletions() {
-    try {
-      const res = await fetch(`/api/crons/recent?since=${encodeURIComponent(cronSince)}`, {
-        credentials: 'same-origin'
-      });
-      if (!res.ok) return;
-      const data = await res.json();
-      const completions = Array.isArray(data.completions) ? data.completions : [];
-      for (const completion of completions) {
-        const completedAt = Number(completion.completed_at || 0);
-        if (completedAt > cronSince) cronSince = completedAt;
-        const failed = completion.status === 'error';
-        const title = failed ? 'Hermes reminder failed' : 'Hermes reminder completed';
-        const body = completion.name || 'Scheduled job completed';
-        if (typeof window.showToast === 'function' && !document.hidden) {
-          window.showToast(`${title}: ${body}`, 4000, failed ? 'error' : 'success');
-        }
-        if (typeof window.playNotificationSound === 'function') {
-          window.playNotificationSound();
-        }
-        if (typeof window.sendBrowserNotification === 'function') {
-          window.sendBrowserNotification(title, body);
-        }
-      }
-    } catch (_) {
-      // Best-effort browser reminder surface; cron execution is server-side.
-    }
-  }
-
-  setInterval(pollCronCompletions, 30000);
-})();
 EOF
 
 cat >"agents/$agent/config/compose.yaml" <<EOF
@@ -188,8 +133,6 @@ services:
       HERMES_WEBUI_STATE_DIR: /home/hermeswebui/.hermes/webui
       HERMES_WEBUI_DEFAULT_WORKSPACE: /workspace
       HERMES_WEBUI_SKIP_ONBOARDING: "1"
-      HERMES_WEBUI_EXTENSION_DIR: /home/hermeswebui/.hermes/webui/extensions
-      HERMES_WEBUI_EXTENSION_SCRIPT_URLS: /extensions/default-preferences.js
       HERMES_INFERENCE_PROVIDER: openai-codex
       HERMES_INFERENCE_MODEL: gpt-5.5
       HERMES_EXEC_ASK: "1"
