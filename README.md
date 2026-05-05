@@ -155,7 +155,8 @@ https://<your-team-name>.cloudflareaccess.com/cdn-cgi/access/callback
 ```
 
 9. Copy the Google OAuth client ID and client secret into Cloudflare.
-10. Save the identity provider and use Cloudflare's `Test` action for Google.
+10. Enable `Proof Key for Code Exchange (PKCE)`.
+11. Save the identity provider and use Cloudflare's `Test` action for Google.
 
 Restrict access per agent with a dedicated Access application:
 
