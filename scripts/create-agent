@@ -98,6 +98,7 @@ services:
       context: .
       dockerfile: Dockerfile.hermes-runtime
     image: personal-agent-hermes-runtime:latest
+    pull_policy: build
     container_name: $webui_service
     restart: unless-stopped
     depends_on:
