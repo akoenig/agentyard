@@ -135,16 +135,26 @@ It also starts `hermy-hermes-agent`, which runs `hermes gateway run` for reminde
 
 Hermes Agent has a native Telegram home channel. Cron delivery target `telegram` sends scheduled task results to that home channel.
 
-Create a Telegram bot with BotFather, add the bot to the chat you want to use, then either send `/sethome` in that Telegram chat or fill the generated `.env` entries manually:
+Create a Telegram bot with BotFather, add the bot to the chat you want to use, then configure the generated entries in the repository-local `.env` file. On the server this is usually `/root/personal-agent/.env`.
+
+For agent `hermy`, the entries look like this:
 
 ```bash
-HERMES_HERMY_TELEGRAM_BOT_TOKEN=<bot-token>
-HERMES_HERMY_TELEGRAM_ALLOWED_USERS=<your-telegram-user-id>
-HERMES_HERMY_TELEGRAM_HOME_CHANNEL=<general-chat-id>
+HERMES_HERMY_TELEGRAM_BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrSTUvwxYZ
+HERMES_HERMY_TELEGRAM_ALLOWED_USERS=123456789
+HERMES_HERMY_TELEGRAM_HOME_CHANNEL=123456789
 HERMES_HERMY_TELEGRAM_HOME_CHANNEL_NAME=General
 ```
 
-For Telegram groups, the chat ID is usually a negative number like `-1001234567890`. For a personal DM, the chat ID is your Telegram user ID.
+`HERMES_HERMY_TELEGRAM_BOT_TOKEN` is the bot token from `@BotFather`.
+
+`HERMES_HERMY_TELEGRAM_ALLOWED_USERS` is a comma-separated list of numeric Telegram user IDs allowed to use the bot. Get your ID from `@userinfobot`, for example `123456789` or `123456789,987654321` for multiple users.
+
+`HERMES_HERMY_TELEGRAM_HOME_CHANNEL` is the home delivery target. For a personal DM with the bot, this is usually your Telegram user ID. For Telegram groups, the chat ID is usually a negative number like `-1001234567890`.
+
+`HERMES_HERMY_TELEGRAM_HOME_CHANNEL_NAME` is only a display name. Use something like `General`, `Hermy`, or `Notifications`.
+
+As an alternative to setting `HERMES_HERMY_TELEGRAM_HOME_CHANNEL` manually, restart the gateway after adding the bot token and allowed users, then send `/sethome` in the Telegram chat you want to use as the home channel.
 
 Restart the gateway sidecar after editing `.env`:
 
