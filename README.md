@@ -122,6 +122,37 @@ Then recreate Hermes and WebUI so they pick up the generated LiteLLM key:
 docker compose -f compose.yaml -f agents/hermy/config/compose.yaml up -d --force-recreate hermy-hermes hermy-hermes-webui
 ```
 
+## Hermes Agent Setup
+
+Each agent's Hermes containers use that agent's private LiteLLM service as their OpenAI-compatible provider.
+
+For `hermy`, the internal LiteLLM API endpoint is:
+
+```text
+http://hermy-litellm:4000/v1
+```
+
+For any agent, use:
+
+```text
+http://<agent>-litellm:4000/v1
+```
+
+The generated compose file wires this into Hermes and Hermes WebUI:
+
+```text
+OPENAI_API_BASE=http://hermy-litellm:4000/v1
+OPENAI_API_KEY=${HERMES_HERMY_LITELLM_KEY}
+```
+
+`LITELLM_HERMY_MASTER_KEY` is the LiteLLM admin/master key. Do not configure Hermes with it. `HERMES_HERMY_LITELLM_KEY` is the LiteLLM virtual key created for Hermes by `scripts/create-agent-key hermy`.
+
+After creating or changing the Hermes LiteLLM key, recreate Hermes and WebUI:
+
+```bash
+docker compose -f compose.yaml -f agents/hermy/config/compose.yaml up -d --force-recreate hermy-hermes hermy-hermes-webui
+```
+
 ## Cloudflare Tunnel
 
 Each agent should have one Cloudflare Tunnel public hostname:
