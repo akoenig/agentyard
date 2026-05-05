@@ -5,8 +5,6 @@ agents/*/data/**
 !agents/*/data/.gitkeep
 !agents/*/data/hermes/
 !agents/*/data/hermes/.gitkeep
-!agents/*/data/litellm/
-!agents/*/data/litellm/.gitkeep
 !agents/*/data/workspace/
 !agents/*/data/workspace/.gitkeep
 !data/
