@@ -44,6 +44,10 @@ Each generated WebUI container uses the stock `ghcr.io/nesquena/hermes-webui:lat
 
 Scheduled jobs and reminders require Hermes Agent's gateway loop. Each generated agent also runs `nousresearch/hermes-agent:latest` with `gateway run`, sharing the same agent-named Hermes profile and workspace as WebUI. The gateway is not exposed through Cloudflare; it only needs egress for model access and optional notification delivery.
 
+WebUI also sets `HERMES_EXEC_ASK=1` so Hermes Agent exposes the `cronjob` tool during browser chats. Without that environment flag, prompts like "remind me in 10 minutes" may not be able to create scheduled jobs from WebUI chat, even though the Cron panel API is present.
+
+Cron jobs created from WebUI browser chats do not have a messaging-platform origin like Telegram or Discord, so Hermes stores their output locally by default instead of posting a new message back into the original chat. Generated agents install a WebUI extension that polls `/api/crons/recent` and raises browser notifications for completed reminders when the browser allows notifications. Full run output is available from the WebUI Tasks/Cron panel.
+
 Hermes WebUI expects Hermes Agent source in the mounted Hermes home. `scripts/create-agent` clones `https://github.com/NousResearch/hermes-agent.git` into `agents/<agent>/data/hermes/hermes-agent`, and the WebUI startup installs Hermes Agent from that checkout.
 
 The generated compose file sets the runtime container to the configured `UID` and `GID` values, defaulting to `1000`, to keep host-mounted workspace files writable.

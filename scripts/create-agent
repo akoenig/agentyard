@@ -118,6 +118,38 @@ cat >"agents/$agent/data/hermes/webui/extensions/default-preferences.js" <<'EOF'
   if (typeof window._applyVoiceModePref === 'function') {
     window._applyVoiceModePref();
   }
+
+  let cronSince = Date.now() / 1000;
+  async function pollCronCompletions() {
+    try {
+      const res = await fetch(`/api/crons/recent?since=${encodeURIComponent(cronSince)}`, {
+        credentials: 'same-origin'
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      const completions = Array.isArray(data.completions) ? data.completions : [];
+      for (const completion of completions) {
+        const completedAt = Number(completion.completed_at || 0);
+        if (completedAt > cronSince) cronSince = completedAt;
+        const failed = completion.status === 'error';
+        const title = failed ? 'Hermes reminder failed' : 'Hermes reminder completed';
+        const body = completion.name || 'Scheduled job completed';
+        if (typeof window.showToast === 'function' && !document.hidden) {
+          window.showToast(`${title}: ${body}`, 4000, failed ? 'error' : 'success');
+        }
+        if (typeof window.playNotificationSound === 'function') {
+          window.playNotificationSound();
+        }
+        if (typeof window.sendBrowserNotification === 'function') {
+          window.sendBrowserNotification(title, body);
+        }
+      }
+    } catch (_) {
+      // Best-effort browser reminder surface; cron execution is server-side.
+    }
+  }
+
+  setInterval(pollCronCompletions, 30000);
 })();
 EOF
 
@@ -160,6 +192,7 @@ services:
       HERMES_WEBUI_EXTENSION_SCRIPT_URLS: /extensions/default-preferences.js
       HERMES_INFERENCE_PROVIDER: openai-codex
       HERMES_INFERENCE_MODEL: gpt-5.5
+      HERMES_EXEC_ASK: "1"
       WANTED_UID: \${UID:-1000}
       WANTED_GID: \${GID:-1000}
     volumes:
