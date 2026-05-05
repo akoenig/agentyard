@@ -71,11 +71,7 @@ EOF
 cat >"agents/$agent/config/compose.yaml" <<EOF
 services:
   $webui_service:
-    build:
-      context: .
-      dockerfile: Dockerfile.hermes-runtime
-    image: personal-agent-hermes-runtime:latest
-    pull_policy: build
+    image: ghcr.io/nesquena/hermes-webui:latest
     container_name: $webui_service
     restart: unless-stopped
     expose:
@@ -85,7 +81,6 @@ services:
       HERMES_WEBUI_PORT: "8787"
       HERMES_WEBUI_PASSWORD: \${$webui_password_var}
       HERMES_HOME: /home/hermeswebui/.hermes
-      HERMES_WEBUI_AGENT_DIR: /opt/hermes
       HERMES_WEBUI_STATE_DIR: /home/hermeswebui/.hermes/webui
       HERMES_WEBUI_DEFAULT_WORKSPACE: /workspace
       HERMES_INFERENCE_PROVIDER: openai-codex

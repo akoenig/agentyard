@@ -1,6 +1,6 @@
 # Personal Agent Infrastructure
 
-Docker Compose infrastructure for running multiple isolated Hermes WebUI runtimes. Each agent authenticates directly with the OpenAI Codex provider using a ChatGPT subscription login.
+Docker Compose infrastructure for running multiple isolated Hermes WebUI runtimes. Each agent uses the recommended upstream Hermes WebUI single-container Docker setup and authenticates directly with the OpenAI Codex provider using a ChatGPT subscription login.
 
 Public access is WebUI-only through Cloudflare Tunnel:
 
@@ -20,7 +20,7 @@ Shared services in `compose.yaml`:
 
 Per-agent services in `agents/<agent>/config/compose.yaml`:
 
-- `<agent>-hermes-webui`, single Hermes runtime and public user-facing UI reached only through Cloudflare Tunnel
+- `<agent>-hermes-webui`, upstream Hermes WebUI single-container runtime reached only through Cloudflare Tunnel
 
 Per-agent runtime state lives under `agents/<agent>/data/`:
 
@@ -35,7 +35,7 @@ agents/hermy/
 
 No agent is included by default. Always create agents with `scripts/create-agent`.
 
-Each generated WebUI container is built from `Dockerfile.hermes-runtime`, which layers Hermes Agent source from `nousresearch/hermes-agent:latest` into the upstream Hermes WebUI image at `/opt/hermes`. WebUI chat, tools, sessions, memory, and workspace access all run in the same container.
+Each generated WebUI container uses the stock `ghcr.io/nesquena/hermes-webui:latest` image. This follows the upstream recommended single-container setup: WebUI runs the agent in-process with the mounted Hermes home and `/workspace` bind mount.
 
 The generated compose file sets the runtime container to the configured `UID` and `GID` values, defaulting to `1000`, to keep host-mounted workspace files writable.
 
@@ -91,7 +91,7 @@ This creates:
 - `agents/hermy/data/workspace/`
 - `.env` entry for the Hermes WebUI password
 
-During creation, the script starts the OpenAI Codex device-code login inside the Hermes runtime container. Open the shown URL, enter the displayed code, and approve the ChatGPT subscription login.
+During creation, the script starts the OpenAI Codex device-code login inside the Hermes WebUI container. Open the shown URL, enter the displayed code, and approve the ChatGPT subscription login.
 
 Hermes stores the OAuth credentials in:
 
@@ -114,17 +114,16 @@ terminal:
   cwd: /workspace
 ```
 
-Verify the running runtime sees the expected state paths and provider overrides:
+Verify the running runtime sees the expected state path and provider overrides:
 
 ```bash
-docker exec hermy-hermes-webui sh -lc 'env | grep -E "HERMES_HOME|HERMES_WEBUI_AGENT_DIR|HERMES_INFERENCE_PROVIDER|HERMES_INFERENCE_MODEL"'
+docker exec hermy-hermes-webui sh -lc 'env | grep -E "HERMES_HOME|HERMES_INFERENCE_PROVIDER|HERMES_INFERENCE_MODEL"'
 ```
 
 Expected values include:
 
 ```text
 HERMES_HOME=/home/hermeswebui/.hermes
-HERMES_WEBUI_AGENT_DIR=/opt/hermes
 HERMES_INFERENCE_PROVIDER=openai-codex
 HERMES_INFERENCE_MODEL=gpt-5.3-codex
 ```
