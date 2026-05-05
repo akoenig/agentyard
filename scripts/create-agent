@@ -26,6 +26,7 @@ fi
 agent_base_domain=${AGENT_BASE_DOMAIN:-example.com}
 webui_service="$agent-hermes-webui"
 agent_service="$agent-hermes-agent"
+agent_network="$agent-network"
 webui_password_var="HERMES_${agent_env}_WEBUI_PASSWORD"
 webui_host="$agent.$agent_base_domain"
 
@@ -137,7 +138,7 @@ services:
       - ./agents/$agent/data/hermes:/home/hermes/.hermes
       - ./agents/$agent/data/workspace:/workspace
     networks:
-      - egress
+      - $agent_network
 
   $webui_service:
     image: \${HERMES_WEBUI_IMAGE:-$hermes_webui_image}
@@ -166,7 +167,11 @@ services:
       - ./agents/$agent/data/workspace:/workspace
     networks:
       - tunnel
-      - egress
+      - $agent_network
+
+networks:
+  $agent_network:
+    name: \${COMPOSE_PROJECT_NAME:-agents}-$agent
 EOF
 
 touch .env

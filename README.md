@@ -53,9 +53,12 @@ The generated compose file sets the runtime container to the configured `UID` an
 The stack uses separate Docker networks to reduce lateral access:
 
 - `tunnel`, internal network for Cloudflare Tunnel and Hermes WebUIs
-- `egress`, normal bridge network for services that need Internet access
+- `egress`, normal bridge network for shared services that need Internet access
+- `${COMPOSE_PROJECT_NAME:-agents}-<agent>`, per-agent bridge network for that agent's WebUI and gateway sidecar
 
-Hermes WebUI runtimes and cloudflared are attached to `egress` for outbound Internet access. Cloudflared reaches each WebUI over `tunnel`.
+Cloudflared is attached to `egress` for outbound Internet access and `tunnel` for inbound routing to WebUIs. Each Hermes WebUI is attached to `tunnel` plus its own per-agent bridge network. Each Hermes gateway sidecar is attached only to its own per-agent bridge network.
+
+Per-agent bridge networks are intentionally not shared across agents. They provide outbound Internet access for that agent's containers without putting all agents on one common egress network.
 
 ## Step-By-Step Setup
 
