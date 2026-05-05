@@ -46,7 +46,7 @@ Scheduled jobs and reminders require Hermes Agent's gateway loop. Each generated
 
 WebUI also sets `HERMES_EXEC_ASK=1` so Hermes Agent exposes the `cronjob` tool during browser chats. Without that environment flag, prompts like "remind me in 10 minutes" may not be able to create scheduled jobs from WebUI chat, even though the Cron panel API is present.
 
-Cron jobs created from WebUI browser chats do not have a messaging-platform origin like Telegram or Discord, so Hermes stores their output locally by default instead of posting a new message back into the original chat. Full run output is available from the WebUI Tasks/Cron panel.
+Cron jobs created from WebUI browser chats do not have a messaging-platform origin like Telegram or Discord, so Hermes stores their output locally by default unless the job targets a messaging platform. For a shared notification destination, configure Telegram as the agent's home channel and ask reminders to deliver there, or select Telegram in the Cron panel. Full run output is also available from the WebUI Tasks/Cron panel.
 
 Hermes WebUI expects Hermes Agent source in the mounted Hermes home. `scripts/create-agent` clones `https://github.com/NousResearch/hermes-agent.git` into `agents/<agent>/data/hermes/hermes-agent`, and the WebUI startup installs Hermes Agent from that checkout.
 
@@ -118,6 +118,7 @@ This creates:
 - `agents/hermy/data/hermes/webui/settings.json`
 - `agents/hermy/data/workspace/`
 - empty `.env` entry for the Hermes WebUI password, disabled by default because Cloudflare Access is expected to protect the hostname
+- empty `.env` entries for an optional Telegram home channel
 
 During creation, the script starts the OpenAI Codex device-code login with the official `nousresearch/hermes-agent` image mounted against the same Hermes home. Open the shown URL, enter the displayed code, and approve the ChatGPT subscription login.
 
@@ -130,7 +131,30 @@ agents/hermy/data/hermes/profiles/hermy/auth.json
 After login succeeds, the script starts `cloudflared` and `hermy-hermes-webui`.
 It also starts `hermy-hermes-agent`, which runs `hermes gateway run` for reminders and cron jobs.
 
-### 3. Verify Hermes Codex Configuration
+### 3. Optional Telegram Home Channel
+
+Hermes Agent has a native Telegram home channel. Cron delivery target `telegram` sends scheduled task results to that home channel.
+
+Create a Telegram bot with BotFather, add the bot to the chat you want to use, then either send `/sethome` in that Telegram chat or fill the generated `.env` entries manually:
+
+```bash
+HERMES_HERMY_TELEGRAM_BOT_TOKEN=<bot-token>
+HERMES_HERMY_TELEGRAM_ALLOWED_USERS=<your-telegram-user-id>
+HERMES_HERMY_TELEGRAM_HOME_CHANNEL=<general-chat-id>
+HERMES_HERMY_TELEGRAM_HOME_CHANNEL_NAME=General
+```
+
+For Telegram groups, the chat ID is usually a negative number like `-1001234567890`. For a personal DM, the chat ID is your Telegram user ID.
+
+Restart the gateway sidecar after editing `.env`:
+
+```bash
+docker compose -f compose.yaml -f agents/hermy/config/compose.yaml up -d --force-recreate hermy-hermes-agent
+```
+
+Telegram-origin reminders naturally deliver back to Telegram. WebUI-origin reminders need an explicit delivery target, for example: "remind me in 10 minutes and deliver it to Telegram" or the Cron panel's Telegram delivery option. For a specific Telegram topic instead of the home channel, use Hermes' direct target format `telegram:<chat_id>:<thread_id>`.
+
+### 4. Verify Hermes Codex Configuration
 
 The generated Hermes config selects the native Codex provider:
 
@@ -176,7 +200,7 @@ Generated agents also preseed WebUI defaults:
 - browser notifications enabled, subject to the browser permission prompt
 - token usage visible after responses
 
-### 4. Verify Workspace Mount
+### 5. Verify Workspace Mount
 
 The agent workspace is mounted into the runtime at `/workspace` and persisted on the host at `agents/hermy/data/workspace/`.
 
@@ -189,7 +213,7 @@ ls -la agents/hermy/data/workspace/mount-test.txt
 
 If the container cannot write to `/workspace`, make sure `.env` has the correct `UID` and `GID`, then recreate the runtime.
 
-### 5. Configure Cloudflare Tunnel
+### 6. Configure Cloudflare Tunnel
 
 Each agent should have one Cloudflare Tunnel public hostname:
 
@@ -200,7 +224,7 @@ Service:  http://hermy-hermes-webui:8787
 
 Use one shared tunnel connector for the host and add one public hostname per agent.
 
-### 6. Configure Cloudflare Access
+### 7. Configure Cloudflare Access
 
 Protect each agent hostname with Cloudflare Access and Google Auth.
 
@@ -264,7 +288,7 @@ docker compose -f compose.yaml -f agents/hermy/config/compose.yaml up -d --force
 
 Keeping both Cloudflare Access and the Hermes WebUI password is possible, but Hermes WebUI's login page probes `/health` without credentials. If Cloudflare Access protects `/health`, the browser can show `Cannot reach server`. To keep the second password, add a Cloudflare Access bypass only for `/health`.
 
-### 7. Open The WebUI
+### 8. Open The WebUI
 
 Open the agent hostname in a browser:
 

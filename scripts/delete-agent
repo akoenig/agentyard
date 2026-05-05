@@ -26,6 +26,10 @@ agent_env=$(printf '%s' "$agent" | tr '[:lower:]-' '[:upper:]_')
 webui_service="$agent-hermes-webui"
 agent_service="$agent-hermes-agent"
 webui_password_var="HERMES_${agent_env}_WEBUI_PASSWORD"
+telegram_bot_token_var="HERMES_${agent_env}_TELEGRAM_BOT_TOKEN"
+telegram_allowed_users_var="HERMES_${agent_env}_TELEGRAM_ALLOWED_USERS"
+telegram_home_channel_var="HERMES_${agent_env}_TELEGRAM_HOME_CHANNEL"
+telegram_home_channel_name_var="HERMES_${agent_env}_TELEGRAM_HOME_CHANNEL_NAME"
 
 if [ -f .env ]; then
   set -a
@@ -46,7 +50,11 @@ rm -rf "$agent_dir"
 if [ -f .env ]; then
   tmp_file=".env.tmp.$$"
   grep -v -e "^# Agent: $agent$" \
-    -e "^$webui_password_var=" .env >"$tmp_file" || true
+    -e "^$webui_password_var=" \
+    -e "^$telegram_bot_token_var=" \
+    -e "^$telegram_allowed_users_var=" \
+    -e "^$telegram_home_channel_var=" \
+    -e "^$telegram_home_channel_name_var=" .env >"$tmp_file" || true
   mv "$tmp_file" .env
   chmod go-rwx .env*
 fi

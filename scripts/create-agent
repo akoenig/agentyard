@@ -28,6 +28,10 @@ webui_service="$agent-hermes-webui"
 agent_service="$agent-hermes-agent"
 agent_network="$agent-network"
 webui_password_var="HERMES_${agent_env}_WEBUI_PASSWORD"
+telegram_bot_token_var="HERMES_${agent_env}_TELEGRAM_BOT_TOKEN"
+telegram_allowed_users_var="HERMES_${agent_env}_TELEGRAM_ALLOWED_USERS"
+telegram_home_channel_var="HERMES_${agent_env}_TELEGRAM_HOME_CHANNEL"
+telegram_home_channel_name_var="HERMES_${agent_env}_TELEGRAM_HOME_CHANNEL_NAME"
 webui_host="$agent.$agent_base_domain"
 
 if [ -d "agents/$agent" ]; then
@@ -111,6 +115,10 @@ services:
       HERMES_INFERENCE_MODEL: gpt-5.5
       HERMES_UID: \${UID:-1000}
       HERMES_GID: \${GID:-1000}
+      TELEGRAM_BOT_TOKEN: \${$telegram_bot_token_var}
+      TELEGRAM_ALLOWED_USERS: \${$telegram_allowed_users_var}
+      TELEGRAM_HOME_CHANNEL: \${$telegram_home_channel_var}
+      TELEGRAM_HOME_CHANNEL_NAME: \${$telegram_home_channel_name_var:-General}
     volumes:
       - ./agents/$agent/data/hermes:/home/hermes/.hermes
       - ./agents/$agent/data/workspace:/workspace
@@ -156,6 +164,10 @@ if ! grep -q "^$webui_password_var=" .env; then
   {
     printf '\n# Agent: %s\n' "$agent"
     printf '%s=\n' "$webui_password_var"
+    printf '%s=\n' "$telegram_bot_token_var"
+    printf '%s=\n' "$telegram_allowed_users_var"
+    printf '%s=\n' "$telegram_home_channel_var"
+    printf '%s=General\n' "$telegram_home_channel_name_var"
   } >>.env
   chmod go-rwx .env*
 fi
@@ -180,3 +192,7 @@ docker compose -f compose.yaml -f "agents/$agent/config/compose.yaml" up -d clou
 
 printf '\nAgent %s is ready.\n' "$agent"
 printf 'Open: https://%s\n' "$webui_host"
+printf '\nNext steps:\n'
+printf '1. Add Cloudflare Tunnel public hostname %s -> http://%s:8787.\n' "$webui_host" "$webui_service"
+printf '2. Protect https://%s with Cloudflare Access.\n' "$webui_host"
+printf '3. Optional Telegram delivery: fill %s, %s, and %s in .env, restart %s, then send /sethome in the Telegram chat.\n' "$telegram_bot_token_var" "$telegram_allowed_users_var" "$telegram_home_channel_var" "$agent_service"
