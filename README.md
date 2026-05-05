@@ -136,14 +136,26 @@ Protect each agent hostname with Cloudflare Access and Google Auth.
 
 Configure Google as a Cloudflare Access login method:
 
-1. Open Cloudflare Zero Trust.
-2. Go to `Settings` -> `Authentication`.
-3. Under `Login methods`, add `Google Workspace` or `Google`.
-4. Follow Cloudflare's instructions to create the Google OAuth app in Google Cloud.
-5. Configure the Google OAuth consent screen for the OpenFormation organization.
-6. Add Cloudflare's callback URL from the login-method setup as an authorized redirect URI in Google Cloud.
-7. Copy the Google client ID and client secret back into Cloudflare.
-8. Save the login method and test authentication.
+1. Open the Cloudflare Zero Trust dashboard at `https://one.dash.cloudflare.com/`.
+2. Select the Cloudflare account that owns the tunnel and Access applications.
+3. Go to `Integrations` -> `Identity providers`.
+4. Select `Add new identity provider`, then choose `Google`.
+5. If the dashboard uses the older layout, use `Settings` -> `Authentication` -> `Login methods` instead.
+6. Create a Google OAuth app in Google Cloud with application type `Web application`.
+7. Set the authorized JavaScript origin to the Cloudflare Access team domain:
+
+```text
+https://<your-team-name>.cloudflareaccess.com
+```
+
+8. Set the authorized redirect URI to the Cloudflare Access callback URL:
+
+```text
+https://<your-team-name>.cloudflareaccess.com/cdn-cgi/access/callback
+```
+
+9. Copy the Google OAuth client ID and client secret into Cloudflare.
+10. Save the identity provider and use Cloudflare's `Test` action for Google.
 
 Restrict access per agent with a dedicated Access application:
 
