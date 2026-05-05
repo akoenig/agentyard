@@ -83,7 +83,7 @@ printf '%s\n' "$agent" >"agents/$agent/data/hermes/active_profile"
 cat >"agents/$agent/data/hermes/profiles/$agent/config.yaml" <<EOF
 model:
   provider: openai-codex
-  model: gpt-5.5
+  default: gpt-5.5
 terminal:
   backend: local
   cwd: /workspace

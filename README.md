@@ -131,7 +131,7 @@ The generated Hermes config selects the native Codex provider:
 ```yaml
 model:
   provider: openai-codex
-  model: gpt-5.5
+  default: gpt-5.5
 terminal:
   backend: local
   cwd: /workspace
