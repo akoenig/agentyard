@@ -5,5 +5,6 @@ FROM ghcr.io/nesquena/hermes-webui:latest
 USER root
 
 COPY --from=hermes-agent --chown=hermeswebuitoo:hermeswebuitoo /opt/hermes /opt/hermes
+RUN chmod -R a+rwX /opt/hermes
 
 USER hermeswebuitoo
