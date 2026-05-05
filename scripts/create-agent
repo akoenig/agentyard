@@ -105,6 +105,8 @@ services:
       - "8642"
     environment:
       HERMES_HOME: /opt/data
+      HERMES_UID: \${UID:-1000}
+      HERMES_GID: \${GID:-1000}
       OPENAI_API_BASE: http://$litellm_service:4000/v1
       OPENAI_API_KEY: \${$hermes_key_var:-}
       API_SERVER_ENABLED: "true"
@@ -137,6 +139,8 @@ services:
       HERMES_WEBUI_DEFAULT_WORKSPACE: /workspace
       OPENAI_API_BASE: http://$litellm_service:4000/v1
       OPENAI_API_KEY: \${$hermes_key_var:-}
+      WANTED_UID: \${UID:-1000}
+      WANTED_GID: \${GID:-1000}
     volumes:
       - ./agents/$agent/data/hermes:/home/hermeswebui/.hermes
       - $agent_src_volume:/home/hermeswebui/.hermes/hermes-agent

@@ -45,6 +45,8 @@ No agent is included by default. Always create agents with `scripts/create-agent
 
 Hermes WebUI's Docker two-container mode still imports and runs Hermes agent Python code inside the WebUI container. Each generated agent therefore shares a Docker volume named `<agent>-hermes-agent-src` between `<agent>-hermes` and `<agent>-hermes-webui`; without that volume, WebUI chat fails with `AIAgent not available -- check that hermes-agent is on sys.path`.
 
+The Hermes agent and Hermes WebUI containers also share the same per-agent Hermes home directory. The generated compose file sets both containers to the same `UID` and `GID` values, defaulting to `1000`, to avoid permission conflicts on `.env`, SQLite databases, sessions, skills, and memory files.
+
 ## Networking
 
 The stack uses separate Docker networks to reduce lateral access:
