@@ -22,14 +22,9 @@ if [ -f .env ]; then
   . ./.env
   set +a
 fi
+
 agent_base_domain=${AGENT_BASE_DOMAIN:-example.com}
-db_name="litellm_$(printf '%s' "$agent" | tr '-' '_')"
-litellm_service="$agent-litellm"
 webui_service="$agent-hermes-webui"
-agent_network="$agent-agent"
-litellm_master_var="LITELLM_${agent_env}_MASTER_KEY"
-litellm_salt_var="LITELLM_${agent_env}_SALT_KEY"
-hermes_key_var="HERMES_${agent_env}_LITELLM_KEY"
 webui_password_var="HERMES_${agent_env}_WEBUI_PASSWORD"
 webui_host="$agent.$agent_base_domain"
 
@@ -37,6 +32,11 @@ if [ -d "agents/$agent" ]; then
   printf 'Agent already exists: %s\n' "$agent" >&2
   exit 1
 fi
+
+command -v docker >/dev/null 2>&1 || {
+  printf 'docker is required to create an agent and complete Codex login.\n' >&2
+  exit 1
+}
 
 random_key() {
   if command -v openssl >/dev/null 2>&1; then
@@ -49,60 +49,31 @@ random_key() {
 mkdir -p \
   "agents/$agent/config" \
   "agents/$agent/data/hermes" \
-  "agents/$agent/data/litellm" \
   "agents/$agent/data/workspace"
 touch \
   "agents/$agent/data/.gitkeep" \
   "agents/$agent/data/hermes/.gitkeep" \
-  "agents/$agent/data/litellm/.gitkeep" \
   "agents/$agent/data/workspace/.gitkeep"
 
 container_uid=${UID:-1000}
 container_gid=${GID:-1000}
 chown -R "$container_uid:$container_gid" "agents/$agent/data" 2>/dev/null || true
 
-cp config/litellm/models.chatgpt.yaml "agents/$agent/config/litellm.yaml"
-cat >>"agents/$agent/config/litellm.yaml" <<EOF
-
-general_settings:
-  master_key: os.environ/LITELLM_MASTER_KEY
+cat >"agents/$agent/data/hermes/config.yaml" <<EOF
+model:
+  provider: openai-codex
+  model: gpt-5.3-codex
+terminal:
+  backend: local
+  cwd: /workspace
 EOF
 
 cat >"agents/$agent/config/compose.yaml" <<EOF
 services:
-  $litellm_service:
-    image: ghcr.io/berriai/litellm-database:main-stable
-    container_name: $litellm_service
-    restart: unless-stopped
-    command: ["--config", "/app/config.yaml", "--port", "4000"]
-    depends_on:
-      postgres:
-        condition: service_healthy
-    expose:
-      - "4000"
-    environment:
-      DATABASE_URL: postgresql://\${POSTGRES_USER}:\${POSTGRES_PASSWORD}@postgres:5432/$db_name
-      LITELLM_MASTER_KEY: \${$litellm_master_var}
-      LITELLM_SALT_KEY: \${$litellm_salt_var}
-      CHATGPT_TOKEN_DIR: /data/chatgpt
-    volumes:
-      - ./agents/$agent/config/litellm.yaml:/app/config.yaml:ro
-      - ./agents/$agent/data/litellm:/data
-    networks:
-      - $agent_network
-      - db
-      - egress
-
   $webui_service:
-    build:
-      context: .
-      dockerfile: Dockerfile.hermes-runtime
-    image: personal-agent-hermes-runtime:latest
-    pull_policy: build
+    image: ghcr.io/nesquena/hermes-webui:latest
     container_name: $webui_service
     restart: unless-stopped
-    depends_on:
-      - $litellm_service
     expose:
       - "8787"
     environment:
@@ -110,50 +81,39 @@ services:
       HERMES_WEBUI_PORT: "8787"
       HERMES_WEBUI_PASSWORD: \${$webui_password_var}
       HERMES_HOME: /home/hermeswebui/.hermes
-      HERMES_WEBUI_AGENT_DIR: /opt/hermes
       HERMES_WEBUI_STATE_DIR: /home/hermeswebui/.hermes/webui
       HERMES_WEBUI_DEFAULT_WORKSPACE: /workspace
-      OPENAI_BASE_URL: http://$litellm_service:4000/v1
-      OPENAI_API_KEY: \${$hermes_key_var:-}
+      HERMES_INFERENCE_PROVIDER: openai-codex
+      HERMES_INFERENCE_MODEL: gpt-5.3-codex
       WANTED_UID: \${UID:-1000}
       WANTED_GID: \${GID:-1000}
     volumes:
       - ./agents/$agent/data/hermes:/home/hermeswebui/.hermes
       - ./agents/$agent/data/workspace:/workspace
     networks:
-      - $agent_network
       - tunnel
       - egress
-
-networks:
-  $agent_network:
-    internal: true
 EOF
 
 touch .env
 chmod go-rwx .env*
-if ! grep -q "^$litellm_master_var=" .env; then
+if ! grep -q "^$webui_password_var=" .env; then
   {
     printf '\n# Agent: %s\n' "$agent"
-    printf '%s=%s\n' "$litellm_master_var" "$(random_key)"
-    printf '%s=%s\n' "$litellm_salt_var" "$(random_key)"
-    printf '%s=\n' "$hermes_key_var"
     printf '%s=%s\n' "$webui_password_var" "$(random_key)"
   } >>.env
   chmod go-rwx .env*
 fi
 
-set -a
-. ./.env
-set +a
-
-if command -v docker >/dev/null 2>&1; then
-  if docker compose ps postgres >/dev/null 2>&1; then
-    docker compose exec -T postgres createdb -U "${POSTGRES_USER:-litellm}" "$db_name" 2>/dev/null || true
-  fi
-fi
-
 printf 'Created agent %s.\n' "$agent"
 printf 'WebUI URL: https://%s\n' "$webui_host"
 printf 'Cloudflare Tunnel service: http://%s:8787\n' "$webui_service"
-printf 'Next: docker compose -f compose.yaml -f agents/%s/config/compose.yaml up -d postgres cloudflared %s %s\n' "$agent" "$litellm_service" "$webui_service"
+printf '\nStarting OpenAI Codex login. Open the shown URL, enter the code, and approve the ChatGPT subscription login.\n'
+
+docker compose -f compose.yaml -f "agents/$agent/config/compose.yaml" run --rm "$webui_service" hermes auth add openai-codex --type oauth
+
+printf '\nStarting shared tunnel and %s.\n' "$webui_service"
+docker compose -f compose.yaml -f "agents/$agent/config/compose.yaml" up -d cloudflared "$webui_service"
+
+printf '\nAgent %s is ready.\n' "$agent"
+printf 'Open: https://%s\n' "$webui_host"
