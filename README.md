@@ -56,7 +56,11 @@ The stack uses separate Docker networks to reduce lateral access:
 
 Hermes WebUI runtime and LiteLLM are attached to `egress` because they need outbound Internet access. Cloudflared is attached to `egress` to reach Cloudflare. Cloudflared is not attached to the per-agent private networks, so it can only reach each WebUI over `tunnel`.
 
-## Initial Setup
+## Step-By-Step Setup
+
+Run all commands from the repository root.
+
+### 1. Configure Local Environment
 
 Create the local environment file:
 
@@ -76,6 +80,15 @@ AGENT_BASE_DOMAIN=agents.example.com
 CLOUDFLARE_TUNNEL_TOKEN=<cloudflare-tunnel-token>
 ```
 
+If the host user that should own workspace files is not UID/GID `1000`, add matching values:
+
+```bash
+UID=$(id -u)
+GID=$(id -g)
+```
+
+### 2. Start Shared Services
+
 Start shared infrastructure:
 
 ```bash
@@ -84,7 +97,7 @@ docker compose up -d postgres cloudflared
 
 Postgres initializes `data/postgres/` on first start. That directory must be empty before first successful initialization.
 
-## Creating An Agent
+### 3. Create An Agent
 
 Create an isolated agent:
 
@@ -102,13 +115,29 @@ This creates:
 - `.env` entries for LiteLLM, Hermes, and Hermes WebUI secrets
 - Postgres database `litellm_hermy`, if Postgres is running
 
-Start the agent:
+### 4. Start The Agent Runtime
+
+Start LiteLLM and the single Hermes WebUI runtime:
 
 ```bash
 docker compose -f compose.yaml -f agents/hermy/config/compose.yaml up -d postgres cloudflared hermy-litellm hermy-hermes-webui
 ```
 
-Create the Hermes LiteLLM virtual key after LiteLLM is running and ChatGPT/provider setup is complete:
+The first start builds `personal-agent-hermes-runtime:latest` from `Dockerfile.hermes-runtime`. That image combines upstream Hermes WebUI with Hermes Agent source copied from `nousresearch/hermes-agent:latest`.
+
+### 5. Configure LiteLLM Provider Access
+
+Configure LiteLLM provider access for the agent. For ChatGPT-backed LiteLLM, complete the required provider/token setup in the LiteLLM data directory for that agent.
+
+Agent LiteLLM runtime data lives here:
+
+```text
+agents/hermy/data/litellm/
+```
+
+### 6. Create The Hermes LiteLLM Key
+
+Create the Hermes LiteLLM virtual key after LiteLLM is running and provider setup is complete:
 
 ```bash
 scripts/create-agent-key hermy
@@ -120,7 +149,7 @@ Then recreate the Hermes WebUI runtime so it picks up the generated LiteLLM key:
 docker compose -f compose.yaml -f agents/hermy/config/compose.yaml up -d --force-recreate hermy-hermes-webui
 ```
 
-## Hermes Agent Setup
+### 7. Verify Internal Hermes Configuration
 
 Each agent's Hermes WebUI runtime uses that agent's private LiteLLM service as its OpenAI-compatible provider.
 
@@ -145,13 +174,34 @@ OPENAI_API_KEY=${HERMES_HERMY_LITELLM_KEY}
 
 `LITELLM_HERMY_MASTER_KEY` is the LiteLLM admin/master key. Do not configure Hermes with it. `HERMES_HERMY_LITELLM_KEY` is the LiteLLM virtual key created for Hermes by `scripts/create-agent-key hermy`.
 
-After creating or changing the Hermes LiteLLM key, recreate Hermes WebUI:
+Verify the running runtime sees the expected endpoint and key:
 
 ```bash
-docker compose -f compose.yaml -f agents/hermy/config/compose.yaml up -d --force-recreate hermy-hermes-webui
+docker exec hermy-hermes-webui sh -lc 'env | grep -E "OPENAI_BASE_URL|OPENAI_API_KEY|HERMES_HOME|HERMES_WEBUI_AGENT_DIR"'
 ```
 
-## Cloudflare Tunnel
+Expected values include:
+
+```text
+OPENAI_BASE_URL=http://hermy-litellm:4000/v1
+HERMES_HOME=/home/hermeswebui/.hermes
+HERMES_WEBUI_AGENT_DIR=/opt/hermes
+```
+
+### 8. Verify Workspace Mount
+
+The agent workspace is mounted into the runtime at `/workspace` and persisted on the host at `agents/hermy/data/workspace/`.
+
+Test the mount:
+
+```bash
+docker exec hermy-hermes-webui sh -lc 'date > /workspace/mount-test.txt && ls -la /workspace/mount-test.txt'
+ls -la agents/hermy/data/workspace/mount-test.txt
+```
+
+If the container cannot write to `/workspace`, make sure `.env` has the correct `UID` and `GID`, then recreate the runtime.
+
+### 9. Configure Cloudflare Tunnel
 
 Each agent should have one Cloudflare Tunnel public hostname:
 
@@ -162,7 +212,7 @@ Service:  http://hermy-hermes-webui:8787
 
 Use one shared tunnel connector for the host and add one public hostname per agent.
 
-## Cloudflare Access
+### 10. Configure Cloudflare Access
 
 Protect each agent hostname with Cloudflare Access and Google Auth.
 
@@ -217,7 +267,24 @@ Hermes WebUI also gets a generated per-agent password in `.env`:
 HERMES_HERMY_WEBUI_PASSWORD=sk-...
 ```
 
-That gives a second layer after Cloudflare Access. If you want Google Auth only, remove or empty the password for that agent and recreate the WebUI, but the safer default is to keep both.
+When using Cloudflare Access, the simplest setup is to remove or empty that password and recreate the WebUI runtime:
+
+```bash
+HERMES_HERMY_WEBUI_PASSWORD=
+docker compose -f compose.yaml -f agents/hermy/config/compose.yaml up -d --force-recreate hermy-hermes-webui
+```
+
+Keeping both Cloudflare Access and the Hermes WebUI password is possible, but Hermes WebUI's login page probes `/health` without credentials. If Cloudflare Access protects `/health`, the browser can show `Cannot reach server`. To keep the second password, add a Cloudflare Access bypass only for `/health`.
+
+### 11. Open The WebUI
+
+Open the agent hostname in a browser:
+
+```text
+https://hermy.agents.example.com
+```
+
+After Cloudflare Access succeeds, Hermes WebUI should load. The browser should never receive LiteLLM or Hermes API keys.
 
 ## Data And Secrets
 
