@@ -28,6 +28,7 @@ litellm_service="$agent-litellm"
 hermes_service="$agent-hermes"
 webui_service="$agent-hermes-webui"
 agent_network="$agent-agent"
+agent_src_volume="$agent-hermes-agent-src"
 litellm_master_var="LITELLM_${agent_env}_MASTER_KEY"
 litellm_salt_var="LITELLM_${agent_env}_SALT_KEY"
 hermes_key_var="HERMES_${agent_env}_LITELLM_KEY"
@@ -103,6 +104,7 @@ services:
     expose:
       - "8642"
     environment:
+      HERMES_HOME: /opt/data
       OPENAI_API_BASE: http://$litellm_service:4000/v1
       OPENAI_API_KEY: \${$hermes_key_var:-}
       API_SERVER_ENABLED: "true"
@@ -111,6 +113,7 @@ services:
       API_SERVER_KEY: \${$hermes_api_key_var}
     volumes:
       - ./agents/$agent/data/hermes:/opt/data
+      - $agent_src_volume:/opt/hermes
     shm_size: 1g
     networks:
       - $agent_network
@@ -129,12 +132,14 @@ services:
       HERMES_WEBUI_PORT: "8787"
       HERMES_WEBUI_PASSWORD: \${$webui_password_var}
       HERMES_HOME: /home/hermeswebui/.hermes
+      HERMES_WEBUI_AGENT_DIR: /home/hermeswebui/.hermes/hermes-agent
       HERMES_WEBUI_STATE_DIR: /home/hermeswebui/webui-state
       HERMES_WEBUI_DEFAULT_WORKSPACE: /workspace
       OPENAI_API_BASE: http://$litellm_service:4000/v1
       OPENAI_API_KEY: \${$hermes_key_var:-}
     volumes:
       - ./agents/$agent/data/hermes:/home/hermeswebui/.hermes
+      - $agent_src_volume:/home/hermeswebui/.hermes/hermes-agent
       - ./agents/$agent/data/webui:/home/hermeswebui/webui-state
       - ./agents/$agent/data/workspace:/workspace
     networks:
@@ -145,6 +150,9 @@ services:
 networks:
   $agent_network:
     internal: true
+
+volumes:
+  $agent_src_volume:
 EOF
 
 touch .env

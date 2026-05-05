@@ -43,6 +43,8 @@ agents/hermy/
 
 No agent is included by default. Always create agents with `scripts/create-agent`.
 
+Hermes WebUI's Docker two-container mode still imports and runs Hermes agent Python code inside the WebUI container. Each generated agent therefore shares a Docker volume named `<agent>-hermes-agent-src` between `<agent>-hermes` and `<agent>-hermes-webui`; without that volume, WebUI chat fails with `AIAgent not available -- check that hermes-agent is on sys.path`.
+
 ## Networking
 
 The stack uses separate Docker networks to reduce lateral access:
@@ -100,6 +102,7 @@ This creates:
 - `agents/hermy/data/workspace/`
 - `.env` entries for LiteLLM, Hermes, and Hermes WebUI secrets
 - Postgres database `litellm_hermy`, if Postgres is running
+- Docker volume `hermy-hermes-agent-src`, used to expose the Hermes agent source to Hermes WebUI
 
 Start the agent:
 
