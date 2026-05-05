@@ -102,7 +102,7 @@ This creates:
 - `agents/hermy/data/hermes/config.yaml`
 - `agents/hermy/data/hermes/hermes-agent/`
 - `agents/hermy/data/workspace/`
-- `.env` entry for the Hermes WebUI password
+- empty `.env` entry for the Hermes WebUI password, disabled by default because Cloudflare Access is expected to protect the hostname
 
 During creation, the script starts the OpenAI Codex device-code login with the official `nousresearch/hermes-agent` image mounted against the same Hermes home. Open the shown URL, enter the displayed code, and approve the ChatGPT subscription login.
 
@@ -214,16 +214,16 @@ Email: specific-user@openformation.io
 
 Only that specific user should be allowed to access that agent's WebUI. Non-matching users are denied by Cloudflare Access before traffic reaches the Docker host.
 
-Hermes WebUI also gets a generated per-agent password in `.env`:
-
-```bash
-HERMES_HERMY_WEBUI_PASSWORD=sk-...
-```
-
-When using Cloudflare Access, the simplest setup is to remove or empty that password and recreate the WebUI runtime:
+Hermes WebUI gets a per-agent password variable in `.env`, but it is empty by default:
 
 ```bash
 HERMES_HERMY_WEBUI_PASSWORD=
+```
+
+This disables the WebUI's own password and relies on Cloudflare Access as the authentication layer. To enable the extra WebUI password, set a value and recreate the WebUI runtime:
+
+```bash
+HERMES_HERMY_WEBUI_PASSWORD=<strong-password>
 docker compose -f compose.yaml -f agents/hermy/config/compose.yaml up -d --force-recreate hermy-hermes-webui
 ```
 

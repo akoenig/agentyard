@@ -47,14 +47,6 @@ hermes_agent_ref=${HERMES_AGENT_REF:-main}
 hermes_webui_image=${HERMES_WEBUI_IMAGE:-ghcr.io/nesquena/hermes-webui:latest}
 hermes_agent_image=${HERMES_AGENT_IMAGE:-nousresearch/hermes-agent:latest}
 
-random_key() {
-  if command -v openssl >/dev/null 2>&1; then
-    printf 'sk-%s' "$(openssl rand -hex 24)"
-  else
-    printf 'sk-%s' "$(LC_ALL=C tr -dc 'a-zA-Z0-9' </dev/urandom | dd bs=48 count=1 2>/dev/null)"
-  fi
-}
-
 mkdir -p \
   "agents/$agent/config" \
   "agents/$agent/data/hermes" \
@@ -114,7 +106,7 @@ chmod go-rwx .env*
 if ! grep -q "^$webui_password_var=" .env; then
   {
     printf '\n# Agent: %s\n' "$agent"
-    printf '%s=%s\n' "$webui_password_var" "$(random_key)"
+    printf '%s=\n' "$webui_password_var"
   } >>.env
   chmod go-rwx .env*
 fi
