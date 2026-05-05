@@ -134,6 +134,27 @@ Use one shared tunnel connector for the host and add one public hostname per age
 
 Protect each agent hostname with Cloudflare Access and Google Auth.
 
+Configure Google as a Cloudflare Access login method:
+
+1. Open Cloudflare Zero Trust.
+2. Go to `Settings` -> `Authentication`.
+3. Under `Login methods`, add `Google Workspace` or `Google`.
+4. Follow Cloudflare's instructions to create the Google OAuth app in Google Cloud.
+5. Configure the Google OAuth consent screen for the OpenFormation organization.
+6. Add Cloudflare's callback URL from the login-method setup as an authorized redirect URI in Google Cloud.
+7. Copy the Google client ID and client secret back into Cloudflare.
+8. Save the login method and test authentication.
+
+Restrict access per agent with a dedicated Access application:
+
+1. Go to `Access` -> `Applications`.
+2. Create a `Self-hosted` application.
+3. Set the application domain to the agent hostname, for example `hermy.agents.example.com`.
+4. Add an `Allow` policy.
+5. In `Include`, choose `Emails` and add exactly the assigned user, for example `specific-user@openformation.io`.
+6. Do not add broad `Everyone`, `Emails ending in`, or organization-wide allow rules unless that agent should be shared.
+7. Save the application.
+
 Recommended policy per agent:
 
 ```text
