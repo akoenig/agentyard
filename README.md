@@ -160,7 +160,7 @@ https://<your-team-name>.cloudflareaccess.com/cdn-cgi/access/callback
 
 Restrict access per agent with a dedicated Access application:
 
-1. Go to `Access` -> `Applications`.
+1. Go to `Access controls` -> `Applications`.
 2. Create a `Self-hosted` application.
 3. Set the application domain to the agent hostname, for example `hermy.agents.example.com`.
 4. Add an `Allow` policy.
