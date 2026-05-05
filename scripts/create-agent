@@ -24,14 +24,16 @@ if [ -f .env ]; then
 fi
 agent_base_domain=${AGENT_BASE_DOMAIN:-example.com}
 db_name="litellm_$(printf '%s' "$agent" | tr '-' '_')"
-litellm_service="litellm-$agent"
-hermes_service="hermes-$agent"
+litellm_service="$agent-litellm"
+hermes_service="$agent-hermes"
+webui_service="$agent-hermes-webui"
+agent_network="$agent-agent"
 litellm_master_var="LITELLM_${agent_env}_MASTER_KEY"
 litellm_salt_var="LITELLM_${agent_env}_SALT_KEY"
 hermes_key_var="HERMES_${agent_env}_LITELLM_KEY"
 hermes_api_key_var="HERMES_${agent_env}_API_SERVER_KEY"
-litellm_host="$agent-litellm-api.$agent_base_domain"
-hermes_host="$agent-hermes-api.$agent_base_domain"
+webui_password_var="HERMES_${agent_env}_WEBUI_PASSWORD"
+webui_host="$agent.$agent_base_domain"
 
 if [ -d "agents/$agent" ]; then
   printf 'Agent already exists: %s\n' "$agent" >&2
@@ -49,8 +51,15 @@ random_key() {
 mkdir -p \
   "agents/$agent/config" \
   "agents/$agent/data/hermes" \
-  "agents/$agent/data/litellm"
-touch "agents/$agent/data/.gitkeep" "agents/$agent/data/hermes/.gitkeep" "agents/$agent/data/litellm/.gitkeep"
+  "agents/$agent/data/litellm" \
+  "agents/$agent/data/webui" \
+  "agents/$agent/data/workspace"
+touch \
+  "agents/$agent/data/.gitkeep" \
+  "agents/$agent/data/hermes/.gitkeep" \
+  "agents/$agent/data/litellm/.gitkeep" \
+  "agents/$agent/data/webui/.gitkeep" \
+  "agents/$agent/data/workspace/.gitkeep"
 
 cp config/litellm/models.chatgpt.yaml "agents/$agent/config/litellm.yaml"
 cat >>"agents/$agent/config/litellm.yaml" <<EOF
@@ -63,7 +72,7 @@ cat >"agents/$agent/config/compose.yaml" <<EOF
 services:
   $litellm_service:
     image: ghcr.io/berriai/litellm-database:main-stable
-    container_name: $agent-litellm
+    container_name: $litellm_service
     restart: unless-stopped
     command: ["--config", "/app/config.yaml", "--port", "4000"]
     depends_on:
@@ -79,16 +88,20 @@ services:
     volumes:
       - ./agents/$agent/config/litellm.yaml:/app/config.yaml:ro
       - ./agents/$agent/data/litellm:/data
+    networks:
+      - $agent_network
+      - db
+      - egress
 
   $hermes_service:
     image: nousresearch/hermes-agent:latest
-    container_name: $agent-hermes
+    container_name: $hermes_service
     restart: unless-stopped
     command: gateway run
     depends_on:
       - $litellm_service
     expose:
-      - "4000"
+      - "8642"
     environment:
       OPENAI_API_BASE: http://$litellm_service:4000/v1
       OPENAI_API_KEY: \${$hermes_key_var:-}
@@ -99,20 +112,39 @@ services:
     volumes:
       - ./agents/$agent/data/hermes:/opt/data
     shm_size: 1g
-EOF
+    networks:
+      - $agent_network
+      - egress
 
-cat >"agents/$agent/config/caddy.caddy" <<EOF
-$litellm_host {
-  encode zstd gzip
-  tls internal
-  reverse_proxy $litellm_service:4000
-}
+  $webui_service:
+    image: ghcr.io/nesquena/hermes-webui:latest
+    container_name: $webui_service
+    restart: unless-stopped
+    depends_on:
+      - $hermes_service
+    expose:
+      - "8787"
+    environment:
+      HERMES_WEBUI_HOST: 0.0.0.0
+      HERMES_WEBUI_PORT: "8787"
+      HERMES_WEBUI_PASSWORD: \${$webui_password_var}
+      HERMES_HOME: /home/hermeswebui/.hermes
+      HERMES_WEBUI_STATE_DIR: /home/hermeswebui/webui-state
+      HERMES_WEBUI_DEFAULT_WORKSPACE: /workspace
+      OPENAI_API_BASE: http://$litellm_service:4000/v1
+      OPENAI_API_KEY: \${$hermes_key_var:-}
+    volumes:
+      - ./agents/$agent/data/hermes:/home/hermeswebui/.hermes
+      - ./agents/$agent/data/webui:/home/hermeswebui/webui-state
+      - ./agents/$agent/data/workspace:/workspace
+    networks:
+      - $agent_network
+      - tunnel
+      - egress
 
-$hermes_host {
-  encode zstd gzip
-  tls internal
-  reverse_proxy $hermes_service:8642
-}
+networks:
+  $agent_network:
+    internal: true
 EOF
 
 touch .env
@@ -124,6 +156,7 @@ if ! grep -q "^$litellm_master_var=" .env; then
     printf '%s=%s\n' "$litellm_salt_var" "$(random_key)"
     printf '%s=\n' "$hermes_key_var"
     printf '%s=%s\n' "$hermes_api_key_var" "$(random_key)"
+    printf '%s=%s\n' "$webui_password_var" "$(random_key)"
   } >>.env
   chmod go-rwx .env*
 fi
@@ -136,12 +169,9 @@ if command -v docker >/dev/null 2>&1; then
   if docker compose ps postgres >/dev/null 2>&1; then
     docker compose exec -T postgres createdb -U "${POSTGRES_USER:-litellm}" "$db_name" 2>/dev/null || true
   fi
-  if docker compose ps caddy >/dev/null 2>&1; then
-    docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile 2>/dev/null || true
-  fi
 fi
 
 printf 'Created agent %s.\n' "$agent"
-printf 'LiteLLM URL: https://%s\n' "$litellm_host"
-printf 'Hermes URL:   https://%s\n' "$hermes_host"
-printf 'Next: docker compose -f compose.yaml -f agents/%s/config/compose.yaml up -d caddy %s\n' "$agent" "$litellm_service"
+printf 'WebUI URL: https://%s\n' "$webui_host"
+printf 'Cloudflare Tunnel service: http://%s:8787\n' "$webui_service"
+printf 'Next: docker compose -f compose.yaml -f agents/%s/config/compose.yaml up -d postgres cloudflared %s\n' "$agent" "$litellm_service"

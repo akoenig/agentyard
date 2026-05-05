@@ -1,3 +1,0 @@
-:80 {
-  respond "agents caddy is running"
-}

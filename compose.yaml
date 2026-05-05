@@ -1,18 +1,13 @@
 name: ${COMPOSE_PROJECT_NAME:-agents}
 
 services:
-  caddy:
-    image: caddy:2-alpine
+  cloudflared:
+    image: cloudflare/cloudflared:latest
     restart: unless-stopped
-    depends_on:
-      - postgres
-    ports:
-      - "${CADDY_BIND_ADDRESS:?Set CADDY_BIND_ADDRESS in .env}:${CADDY_HTTPS_PORT:-443}:443"
-    volumes:
-      - ./config/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./agents:/etc/caddy/agents:ro
-      - ./data/caddy/data:/data
-      - ./data/caddy/config:/config
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN:?Set CLOUDFLARE_TUNNEL_TOKEN in .env}
+    networks:
+      - tunnel
+      - egress
 
   postgres:
     image: postgres:17-alpine
@@ -23,8 +18,17 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - ./data/postgres:/var/lib/postgresql/data
+    networks:
+      - db
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 5
+
+networks:
+  db:
+    internal: true
+  tunnel:
+    internal: true
+  egress: {}

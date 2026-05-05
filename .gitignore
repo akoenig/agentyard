@@ -1,7 +1,5 @@
 .env
-frontend/.env
 data/**
-frontend/data/**
 agents/*/data/**
 !agents/*/data/
 !agents/*/data/.gitkeep
@@ -9,13 +7,9 @@ agents/*/data/**
 !agents/*/data/hermes/.gitkeep
 !agents/*/data/litellm/
 !agents/*/data/litellm/.gitkeep
+!agents/*/data/webui/
+!agents/*/data/webui/.gitkeep
+!agents/*/data/workspace/
+!agents/*/data/workspace/.gitkeep
 !data/
 !data/.gitkeep
-!data/caddy/
-!data/caddy/.gitkeep
-!data/caddy/config/
-!data/caddy/config/.gitkeep
-!data/caddy/data/
-!data/caddy/data/.gitkeep
-!frontend/data/
-!frontend/data/.gitkeep

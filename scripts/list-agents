@@ -20,6 +20,6 @@ for agent_dir in agents/*; do
     _*) continue ;;
   esac
   printf '%s\n' "$agent"
-  printf '  LiteLLM: https://%s-litellm-api.%s\n' "$agent" "$agent_base_domain"
-  printf '  Hermes:  https://%s-hermes-api.%s\n' "$agent" "$agent_base_domain"
+  printf '  WebUI: https://%s.%s\n' "$agent" "$agent_base_domain"
+  printf '  Cloudflare service: http://%s-hermes-webui:8787\n' "$agent"
 done

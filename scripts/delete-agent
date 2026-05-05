@@ -24,12 +24,14 @@ fi
 
 agent_env=$(printf '%s' "$agent" | tr '[:lower:]-' '[:upper:]_')
 db_name="litellm_$(printf '%s' "$agent" | tr '-' '_')"
-litellm_service="litellm-$agent"
-hermes_service="hermes-$agent"
+litellm_service="$agent-litellm"
+hermes_service="$agent-hermes"
+webui_service="$agent-hermes-webui"
 litellm_master_var="LITELLM_${agent_env}_MASTER_KEY"
 litellm_salt_var="LITELLM_${agent_env}_SALT_KEY"
 hermes_key_var="HERMES_${agent_env}_LITELLM_KEY"
 hermes_api_key_var="HERMES_${agent_env}_API_SERVER_KEY"
+webui_password_var="HERMES_${agent_env}_WEBUI_PASSWORD"
 
 if [ -f .env ]; then
   set -a
@@ -38,8 +40,8 @@ if [ -f .env ]; then
 fi
 
 if command -v docker >/dev/null 2>&1; then
-  docker compose -f compose.yaml -f "$agent_dir/config/compose.yaml" stop "$hermes_service" "$litellm_service" 2>/dev/null || true
-  docker compose -f compose.yaml -f "$agent_dir/config/compose.yaml" rm -f "$hermes_service" "$litellm_service" 2>/dev/null || true
+  docker compose -f compose.yaml -f "$agent_dir/config/compose.yaml" stop "$webui_service" "$hermes_service" "$litellm_service" 2>/dev/null || true
+  docker compose -f compose.yaml -f "$agent_dir/config/compose.yaml" rm -f "$webui_service" "$hermes_service" "$litellm_service" 2>/dev/null || true
   if docker compose ps postgres >/dev/null 2>&1; then
     docker compose exec -T postgres dropdb -U "${POSTGRES_USER:-litellm}" --if-exists "$db_name" 2>/dev/null || true
   fi
@@ -53,15 +55,10 @@ if [ -f .env ]; then
     -e "^$litellm_master_var=" \
     -e "^$litellm_salt_var=" \
     -e "^$hermes_key_var=" \
-    -e "^$hermes_api_key_var=" .env >"$tmp_file" || true
+    -e "^$hermes_api_key_var=" \
+    -e "^$webui_password_var=" .env >"$tmp_file" || true
   mv "$tmp_file" .env
   chmod go-rwx .env*
-fi
-
-if command -v docker >/dev/null 2>&1; then
-  if docker compose ps caddy >/dev/null 2>&1; then
-    docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile 2>/dev/null || true
-  fi
 fi
 
 printf 'Deleted agent %s.\n' "$agent"

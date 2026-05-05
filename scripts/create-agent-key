@@ -19,43 +19,52 @@ esac
 agent_env=$(printf '%s' "$agent" | tr '[:lower:]-' '[:upper:]_')
 master_var="LITELLM_${agent_env}_MASTER_KEY"
 hermes_key_var="HERMES_${agent_env}_LITELLM_KEY"
+litellm_service="$agent-litellm"
+agent_compose="agents/$agent/config/compose.yaml"
 
 [ -f .env ] || { printf '.env does not exist.\n' >&2; exit 1; }
 set -a
 . ./.env
 set +a
-agent_base_domain=${AGENT_BASE_DOMAIN:-example.com}
-litellm_host="$agent-litellm-api.$agent_base_domain"
 
 eval "master_key=\${$master_var:-}"
 [ -n "$master_key" ] || { printf 'Missing %s in .env.\n' "$master_var" >&2; exit 1; }
+[ -f "$agent_compose" ] || { printf 'Missing %s. Create the agent first.\n' "$agent_compose" >&2; exit 1; }
 
 payload='{"key_alias":"'"$agent"'-hermes","models":["chatgpt/gpt-5.5","chatgpt/gpt-5.5-pro","chatgpt/gpt-5.4","chatgpt/gpt-5.4-pro","chatgpt/gpt-5.3-codex","chatgpt/gpt-5.3-codex-spark","chatgpt/gpt-5.3-instant","chatgpt/gpt-5.3-chat-latest"],"metadata":{"owner":"agent:'"$agent"'","type":"hermes-agent"}}'
 
-response_file=".create-agent-key.response.$$"
-headers_file=".create-agent-key.headers.$$"
-trap 'rm -f "$response_file" "$headers_file"' EXIT INT TERM
+command -v docker >/dev/null 2>&1 || { printf 'docker is required to generate a key for private LiteLLM.\n' >&2; exit 1; }
 
-printf 'Generating LiteLLM key via https://%s/key/generate\n' "$litellm_host"
-http_status=$(curl --silent --show-error --insecure \
-  --dump-header "$headers_file" \
-  --output "$response_file" \
-  --write-out '%{http_code}' \
-  "https://$litellm_host/key/generate" \
-  -H "Authorization: Bearer $master_key" \
-  -H "Content-Type: application/json" \
-  -d "$payload")
+printf 'Generating LiteLLM key via http://%s:4000/key/generate inside Docker.\n' "$litellm_service"
+response=$(docker compose -f compose.yaml -f "$agent_compose" exec -T \
+  -e MASTER_KEY="$master_key" \
+  -e PAYLOAD="$payload" \
+  "$litellm_service" python - <<'PY'
+import os
+import sys
+import urllib.error
+import urllib.request
 
-response=$(cat "$response_file")
-case "$http_status" in
-  2*) ;;
-  *)
-    printf 'LiteLLM key generation failed with HTTP %s. Response headers:\n' "$http_status" >&2
-    cat "$headers_file" >&2
-    printf '\nResponse body:\n%s\n' "$response" >&2
-    exit 1
-    ;;
-esac
+request = urllib.request.Request(
+    "http://127.0.0.1:4000/key/generate",
+    data=os.environ["PAYLOAD"].encode(),
+    headers={
+        "Authorization": f"Bearer {os.environ['MASTER_KEY']}",
+        "Content-Type": "application/json",
+    },
+    method="POST",
+)
+
+try:
+    with urllib.request.urlopen(request, timeout=60) as response:
+        sys.stdout.write(response.read().decode())
+except urllib.error.HTTPError as error:
+    sys.stderr.write(f"LiteLLM key generation failed with HTTP {error.code}.\n")
+    sys.stderr.write(error.read().decode())
+    sys.stderr.write("\n")
+    sys.exit(1)
+PY
+)
 
 key=$(RESPONSE="$response" python3 - <<'PY'
 import json
@@ -102,4 +111,4 @@ if ! grep -q "^$hermes_key_var=sk-" .env; then
 fi
 
 printf 'Stored %s in .env.\n' "$hermes_key_var"
-printf 'Next: docker compose -f compose.yaml -f agents/%s/config/compose.yaml up -d hermes-%s caddy\n' "$agent" "$agent"
+printf 'Next: docker compose -f compose.yaml -f agents/%s/config/compose.yaml up -d --force-recreate %s %s\n' "$agent" "$agent-hermes" "$agent-hermes-webui"
