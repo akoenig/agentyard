@@ -24,6 +24,7 @@ fi
 
 agent_env=$(printf '%s' "$agent" | tr '[:lower:]-' '[:upper:]_')
 webui_service="$agent-hermes-webui"
+agent_service="$agent-hermes-agent"
 webui_password_var="HERMES_${agent_env}_WEBUI_PASSWORD"
 
 if [ -f .env ]; then
@@ -33,8 +34,8 @@ if [ -f .env ]; then
 fi
 
 if command -v docker >/dev/null 2>&1; then
-  docker compose -f compose.yaml -f "$agent_dir/config/compose.yaml" stop "$webui_service" 2>/dev/null || true
-  docker compose -f compose.yaml -f "$agent_dir/config/compose.yaml" rm -f "$webui_service" 2>/dev/null || true
+  docker compose -f compose.yaml -f "$agent_dir/config/compose.yaml" stop "$webui_service" "$agent_service" 2>/dev/null || true
+  docker compose -f compose.yaml -f "$agent_dir/config/compose.yaml" rm -f "$webui_service" "$agent_service" 2>/dev/null || true
 fi
 
 rm -rf "$agent_dir"

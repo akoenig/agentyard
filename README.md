@@ -21,6 +21,7 @@ Shared services in `compose.yaml`:
 Per-agent services in `agents/<agent>/config/compose.yaml`:
 
 - `<agent>-hermes-webui`, upstream Hermes WebUI single-container runtime reached only through Cloudflare Tunnel
+- `<agent>-hermes-agent`, Hermes Agent gateway sidecar that runs scheduled jobs and reminders
 
 Per-agent runtime state lives under `agents/<agent>/data/`:
 
@@ -39,7 +40,9 @@ agents/hermy/
 
 No agent is included by default. Always create agents with `scripts/create-agent`.
 
-Each generated WebUI container uses the stock `ghcr.io/nesquena/hermes-webui:latest` image. This follows the upstream recommended single-container setup: WebUI runs the agent in-process with the mounted Hermes home and `/workspace` bind mount.
+Each generated WebUI container uses the stock `ghcr.io/nesquena/hermes-webui:latest` image. WebUI runs chat in-process with the mounted Hermes home and `/workspace` bind mount.
+
+Scheduled jobs and reminders require Hermes Agent's gateway loop. Each generated agent also runs `nousresearch/hermes-agent:latest` with `gateway run`, sharing the same agent-named Hermes profile and workspace as WebUI. The gateway is not exposed through Cloudflare; it only needs egress for model access and optional notification delivery.
 
 Hermes WebUI expects Hermes Agent source in the mounted Hermes home. `scripts/create-agent` clones `https://github.com/NousResearch/hermes-agent.git` into `agents/<agent>/data/hermes/hermes-agent`, and the WebUI startup installs Hermes Agent from that checkout.
 
@@ -119,6 +122,7 @@ agents/hermy/data/hermes/profiles/hermy/auth.json
 ```
 
 After login succeeds, the script starts `cloudflared` and `hermy-hermes-webui`.
+It also starts `hermy-hermes-agent`, which runs `hermes gateway run` for reminders and cron jobs.
 
 ### 3. Verify Hermes Codex Configuration
 
@@ -146,6 +150,18 @@ HERMES_HOME=/home/hermeswebui/.hermes
 HERMES_WEBUI_SKIP_ONBOARDING=1
 HERMES_INFERENCE_PROVIDER=openai-codex
 HERMES_INFERENCE_MODEL=gpt-5.5
+```
+
+Verify the reminder scheduler sidecar is running against the agent-named profile:
+
+```bash
+docker exec hermy-hermes-agent sh -lc 'printf "%s\n" "$HERMES_HOME"'
+```
+
+Expected value:
+
+```text
+/home/hermes/.hermes/profiles/hermy
 ```
 
 Generated agents also preseed WebUI defaults:
@@ -297,7 +313,7 @@ Update all agents:
 scripts/update-agents
 ```
 
-Both scripts update the mounted Hermes Agent checkout, pull the configured WebUI image, and recreate the WebUI container. Recreating the container is intentional: the upstream WebUI Docker startup installs Hermes Agent dependencies into the container venv, so dependency changes require a fresh container.
+Both scripts update the mounted Hermes Agent checkout, pull the configured Agent and WebUI images, and recreate the gateway and WebUI containers. Recreating the WebUI container is intentional: the upstream WebUI Docker startup installs Hermes Agent dependencies into the container venv, so dependency changes require a fresh container.
 
 To pin or roll back Hermes Agent to a specific ref:
 

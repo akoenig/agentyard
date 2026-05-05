@@ -25,6 +25,7 @@ fi
 
 agent_base_domain=${AGENT_BASE_DOMAIN:-example.com}
 webui_service="$agent-hermes-webui"
+agent_service="$agent-hermes-agent"
 webui_password_var="HERMES_${agent_env}_WEBUI_PASSWORD"
 webui_host="$agent.$agent_base_domain"
 
@@ -121,9 +122,28 @@ EOF
 
 cat >"agents/$agent/config/compose.yaml" <<EOF
 services:
+  $agent_service:
+    image: \${HERMES_AGENT_IMAGE:-$hermes_agent_image}
+    container_name: $agent_service
+    command: gateway run
+    restart: unless-stopped
+    environment:
+      HERMES_HOME: /home/hermes/.hermes/profiles/$agent
+      HERMES_INFERENCE_PROVIDER: openai-codex
+      HERMES_INFERENCE_MODEL: gpt-5.5
+      HERMES_UID: \${UID:-1000}
+      HERMES_GID: \${GID:-1000}
+    volumes:
+      - ./agents/$agent/data/hermes:/home/hermes/.hermes
+      - ./agents/$agent/data/workspace:/workspace
+    networks:
+      - egress
+
   $webui_service:
     image: \${HERMES_WEBUI_IMAGE:-$hermes_webui_image}
     container_name: $webui_service
+    depends_on:
+      - $agent_service
     restart: unless-stopped
     expose:
       - "8787"
@@ -175,7 +195,7 @@ docker run -it --rm \
   "$hermes_agent_image" auth add openai-codex --type oauth
 
 printf '\nStarting shared tunnel and %s.\n' "$webui_service"
-docker compose -f compose.yaml -f "agents/$agent/config/compose.yaml" up -d cloudflared "$webui_service"
+docker compose -f compose.yaml -f "agents/$agent/config/compose.yaml" up -d cloudflared "$agent_service" "$webui_service"
 
 printf '\nAgent %s is ready.\n' "$agent"
 printf 'Open: https://%s\n' "$webui_host"

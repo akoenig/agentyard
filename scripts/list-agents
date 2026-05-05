@@ -22,4 +22,5 @@ for agent_dir in agents/*; do
   printf '%s\n' "$agent"
   printf '  WebUI: https://%s.%s\n' "$agent" "$agent_base_domain"
   printf '  Cloudflare service: http://%s-hermes-webui:8787\n' "$agent"
+  printf '  Cron gateway: %s-hermes-agent\n' "$agent"
 done
