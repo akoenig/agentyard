@@ -1,0 +1,53 @@
+#!/usr/bin/env sh
+set -eu
+
+usage() {
+  printf 'Usage: %s <agent-name> [agent-ref]\n' "$0" >&2
+  exit 1
+}
+
+[ "$#" -ge 1 ] && [ "$#" -le 2 ] || usage
+
+agent="$1"
+agent_ref=${2:-}
+case "$agent" in
+  *[!a-z0-9-]* | "" | -* | *- | _*)
+    printf 'Agent name must use lowercase letters, numbers, and hyphens, cannot start/end with a hyphen, and cannot start with underscore.\n' >&2
+    exit 1
+    ;;
+esac
+
+agent_dir="agents/$agent"
+agent_compose="$agent_dir/config/compose.yaml"
+agent_source="$agent_dir/data/hermes/hermes-agent"
+webui_service="$agent-hermes-webui"
+
+[ -d "$agent_dir" ] || { printf 'Agent does not exist: %s\n' "$agent" >&2; exit 1; }
+[ -f "$agent_compose" ] || { printf 'Missing %s.\n' "$agent_compose" >&2; exit 1; }
+[ -d "$agent_source/.git" ] || { printf 'Missing Hermes Agent git checkout: %s\n' "$agent_source" >&2; exit 1; }
+
+command -v git >/dev/null 2>&1 || { printf 'git is required.\n' >&2; exit 1; }
+command -v docker >/dev/null 2>&1 || { printf 'docker is required.\n' >&2; exit 1; }
+
+if [ -f .env ]; then
+  set -a
+  . ./.env
+  set +a
+fi
+
+printf 'Updating Hermes Agent source for %s.\n' "$agent"
+if [ -n "$agent_ref" ]; then
+  git -C "$agent_source" fetch --tags origin
+  git -C "$agent_source" checkout "$agent_ref"
+else
+  git -C "$agent_source" pull --ff-only
+fi
+
+printf 'Pulling Hermes WebUI image.\n'
+docker compose -f compose.yaml -f "$agent_compose" pull "$webui_service"
+
+printf 'Recreating %s so WebUI reinstalls Hermes Agent dependencies.\n' "$webui_service"
+docker compose -f compose.yaml -f "$agent_compose" rm -sf "$webui_service"
+docker compose -f compose.yaml -f "$agent_compose" up -d cloudflared "$webui_service"
+
+printf 'Updated agent %s.\n' "$agent"

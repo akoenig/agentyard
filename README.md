@@ -30,12 +30,15 @@ agents/hermy/
     compose.yaml
   data/
     hermes/
+      hermes-agent/
     workspace/
 ```
 
 No agent is included by default. Always create agents with `scripts/create-agent`.
 
 Each generated WebUI container uses the stock `ghcr.io/nesquena/hermes-webui:latest` image. This follows the upstream recommended single-container setup: WebUI runs the agent in-process with the mounted Hermes home and `/workspace` bind mount.
+
+Hermes WebUI expects Hermes Agent source in the mounted Hermes home. `scripts/create-agent` clones `https://github.com/NousResearch/hermes-agent.git` into `agents/<agent>/data/hermes/hermes-agent`, and the WebUI startup installs Hermes Agent from that checkout.
 
 The generated compose file sets the runtime container to the configured `UID` and `GID` values, defaulting to `1000`, to keep host-mounted workspace files writable.
 
@@ -69,6 +72,15 @@ AGENT_BASE_DOMAIN=agents.example.com
 CLOUDFLARE_TUNNEL_TOKEN=<cloudflare-tunnel-token>
 ```
 
+Optional defaults can be pinned in `.env`:
+
+```bash
+HERMES_WEBUI_IMAGE=ghcr.io/nesquena/hermes-webui:latest
+HERMES_AGENT_IMAGE=nousresearch/hermes-agent:latest
+HERMES_AGENT_REPO=https://github.com/NousResearch/hermes-agent.git
+HERMES_AGENT_REF=main
+```
+
 If the host user that should own workspace files is not UID/GID `1000`, add matching values:
 
 ```bash
@@ -88,10 +100,11 @@ This creates:
 
 - `agents/hermy/config/compose.yaml`
 - `agents/hermy/data/hermes/config.yaml`
+- `agents/hermy/data/hermes/hermes-agent/`
 - `agents/hermy/data/workspace/`
 - `.env` entry for the Hermes WebUI password
 
-During creation, the script starts the OpenAI Codex device-code login inside the Hermes WebUI container. Open the shown URL, enter the displayed code, and approve the ChatGPT subscription login.
+During creation, the script starts the OpenAI Codex device-code login with the official `nousresearch/hermes-agent` image mounted against the same Hermes home. Open the shown URL, enter the displayed code, and approve the ChatGPT subscription login.
 
 Hermes stores the OAuth credentials in:
 
@@ -254,6 +267,29 @@ scripts/delete-agent hermy
 ```
 
 This stops and removes the per-agent WebUI container, deletes `agents/hermy/`, and removes the agent-specific `.env` entry.
+
+## Updating Agents
+
+Update one agent:
+
+```bash
+scripts/update-agent hermy
+```
+
+Update all agents:
+
+```bash
+scripts/update-agents
+```
+
+Both scripts update the mounted Hermes Agent checkout, pull the configured WebUI image, and recreate the WebUI container. Recreating the container is intentional: the upstream WebUI Docker startup installs Hermes Agent dependencies into the container venv, so dependency changes require a fresh container.
+
+To pin or roll back Hermes Agent to a specific ref:
+
+```bash
+scripts/update-agent hermy <tag-or-sha>
+scripts/update-agents <tag-or-sha>
+```
 
 ## Models
 

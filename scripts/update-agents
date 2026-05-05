@@ -1,0 +1,25 @@
+#!/usr/bin/env sh
+set -eu
+
+agent_ref=${1:-}
+
+if [ ! -d agents ]; then
+  exit 0
+fi
+
+updated=0
+for agent_dir in agents/*; do
+  [ -d "$agent_dir" ] || exit 0
+  agent=$(basename "$agent_dir")
+  case "$agent" in
+    _*) continue ;;
+  esac
+  if [ -n "$agent_ref" ]; then
+    scripts/update-agent "$agent" "$agent_ref"
+  else
+    scripts/update-agent "$agent"
+  fi
+  updated=$((updated + 1))
+done
+
+printf 'Updated %s agent(s).\n' "$updated"

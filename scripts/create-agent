@@ -37,6 +37,15 @@ command -v docker >/dev/null 2>&1 || {
   printf 'docker is required to create an agent and complete Codex login.\n' >&2
   exit 1
 }
+command -v git >/dev/null 2>&1 || {
+  printf 'git is required to clone Hermes Agent source.\n' >&2
+  exit 1
+}
+
+hermes_agent_repo=${HERMES_AGENT_REPO:-https://github.com/NousResearch/hermes-agent.git}
+hermes_agent_ref=${HERMES_AGENT_REF:-main}
+hermes_webui_image=${HERMES_WEBUI_IMAGE:-ghcr.io/nesquena/hermes-webui:latest}
+hermes_agent_image=${HERMES_AGENT_IMAGE:-nousresearch/hermes-agent:latest}
 
 random_key() {
   if command -v openssl >/dev/null 2>&1; then
@@ -59,6 +68,11 @@ container_uid=${UID:-1000}
 container_gid=${GID:-1000}
 chown -R "$container_uid:$container_gid" "agents/$agent/data" 2>/dev/null || true
 
+printf 'Cloning Hermes Agent source (%s @ %s).\n' "$hermes_agent_repo" "$hermes_agent_ref"
+git clone "$hermes_agent_repo" "agents/$agent/data/hermes/hermes-agent"
+git -C "agents/$agent/data/hermes/hermes-agent" checkout "$hermes_agent_ref"
+chown -R "$container_uid:$container_gid" "agents/$agent/data/hermes/hermes-agent" 2>/dev/null || true
+
 cat >"agents/$agent/data/hermes/config.yaml" <<EOF
 model:
   provider: openai-codex
@@ -71,7 +85,7 @@ EOF
 cat >"agents/$agent/config/compose.yaml" <<EOF
 services:
   $webui_service:
-    image: ghcr.io/nesquena/hermes-webui:latest
+    image: \${HERMES_WEBUI_IMAGE:-$hermes_webui_image}
     container_name: $webui_service
     restart: unless-stopped
     expose:
@@ -110,7 +124,15 @@ printf 'WebUI URL: https://%s\n' "$webui_host"
 printf 'Cloudflare Tunnel service: http://%s:8787\n' "$webui_service"
 printf '\nStarting OpenAI Codex login. Open the shown URL, enter the code, and approve the ChatGPT subscription login.\n'
 
-docker compose -f compose.yaml -f "agents/$agent/config/compose.yaml" run --rm "$webui_service" hermes auth add openai-codex --type oauth
+docker run -it --rm \
+  -e HERMES_HOME=/opt/data \
+  -e HERMES_INFERENCE_PROVIDER=openai-codex \
+  -e HERMES_INFERENCE_MODEL=gpt-5.3-codex \
+  -e HERMES_UID="$container_uid" \
+  -e HERMES_GID="$container_gid" \
+  -v "$(pwd)/agents/$agent/data/hermes:/opt/data" \
+  -v "$(pwd)/agents/$agent/data/workspace:/workspace" \
+  "$hermes_agent_image" auth add openai-codex --type oauth
 
 printf '\nStarting shared tunnel and %s.\n' "$webui_service"
 docker compose -f compose.yaml -f "agents/$agent/config/compose.yaml" up -d cloudflared "$webui_service"
