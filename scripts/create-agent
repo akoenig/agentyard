@@ -66,6 +66,7 @@ mkdir -p \
   "agents/$agent/data/hermes/profiles/$agent/skills" \
   "agents/$agent/data/hermes/profiles/$agent/skins" \
   "agents/$agent/data/hermes/profiles/$agent/workspace" \
+  "agents/$agent/data/hermes/webui" \
   "agents/$agent/data/workspace"
 touch \
   "agents/$agent/data/.gitkeep" \
