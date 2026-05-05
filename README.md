@@ -143,7 +143,7 @@ http://<agent>-litellm:4000/v1
 The generated compose file wires this into Hermes and Hermes WebUI:
 
 ```text
-OPENAI_API_BASE=http://hermy-litellm:4000/v1
+OPENAI_BASE_URL=http://hermy-litellm:4000/v1
 OPENAI_API_KEY=${HERMES_HERMY_LITELLM_KEY}
 ```
 

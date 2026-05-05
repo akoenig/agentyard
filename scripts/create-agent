@@ -107,7 +107,7 @@ services:
       HERMES_HOME: /opt/data
       HERMES_UID: \${UID:-1000}
       HERMES_GID: \${GID:-1000}
-      OPENAI_API_BASE: http://$litellm_service:4000/v1
+      OPENAI_BASE_URL: http://$litellm_service:4000/v1
       OPENAI_API_KEY: \${$hermes_key_var:-}
       API_SERVER_ENABLED: "true"
       API_SERVER_HOST: 0.0.0.0
@@ -137,7 +137,7 @@ services:
       HERMES_WEBUI_AGENT_DIR: /home/hermeswebui/.hermes/hermes-agent
       HERMES_WEBUI_STATE_DIR: /home/hermeswebui/webui-state
       HERMES_WEBUI_DEFAULT_WORKSPACE: /workspace
-      OPENAI_API_BASE: http://$litellm_service:4000/v1
+      OPENAI_BASE_URL: http://$litellm_service:4000/v1
       OPENAI_API_KEY: \${$hermes_key_var:-}
       WANTED_UID: \${UID:-1000}
       WANTED_GID: \${GID:-1000}
