@@ -50,10 +50,22 @@ hermes_agent_image=${HERMES_AGENT_IMAGE:-nousresearch/hermes-agent:latest}
 mkdir -p \
   "agents/$agent/config" \
   "agents/$agent/data/hermes" \
+  "agents/$agent/data/hermes/profiles/$agent" \
+  "agents/$agent/data/hermes/profiles/$agent/cron" \
+  "agents/$agent/data/hermes/profiles/$agent/home" \
+  "agents/$agent/data/hermes/profiles/$agent/logs" \
+  "agents/$agent/data/hermes/profiles/$agent/memories" \
+  "agents/$agent/data/hermes/profiles/$agent/plans" \
+  "agents/$agent/data/hermes/profiles/$agent/sessions" \
+  "agents/$agent/data/hermes/profiles/$agent/skills" \
+  "agents/$agent/data/hermes/profiles/$agent/skins" \
+  "agents/$agent/data/hermes/profiles/$agent/workspace" \
+  "agents/$agent/data/hermes/webui/extensions" \
   "agents/$agent/data/workspace"
 touch \
   "agents/$agent/data/.gitkeep" \
   "agents/$agent/data/hermes/.gitkeep" \
+  "agents/$agent/data/hermes/profiles/$agent/.gitkeep" \
   "agents/$agent/data/workspace/.gitkeep"
 
 container_uid=${UID:-1000}
@@ -65,13 +77,46 @@ git clone "$hermes_agent_repo" "agents/$agent/data/hermes/hermes-agent"
 git -C "agents/$agent/data/hermes/hermes-agent" checkout "$hermes_agent_ref"
 chown -R "$container_uid:$container_gid" "agents/$agent/data/hermes/hermes-agent" 2>/dev/null || true
 
-cat >"agents/$agent/data/hermes/config.yaml" <<EOF
+printf '%s\n' "$agent" >"agents/$agent/data/hermes/active_profile"
+
+cat >"agents/$agent/data/hermes/profiles/$agent/config.yaml" <<EOF
 model:
   provider: openai-codex
-  model: gpt-5.3-codex
+  model: gpt-5.5
 terminal:
   backend: local
   cwd: /workspace
+EOF
+
+cat >"agents/$agent/data/hermes/webui/settings.json" <<EOF
+{
+  "onboarding_completed": true,
+  "sound_enabled": true,
+  "notifications_enabled": true,
+  "show_token_usage": true
+}
+EOF
+
+cat >"agents/$agent/data/hermes/webui/extensions/default-preferences.js" <<'EOF'
+(function () {
+  const defaults = {
+    'hermes-tts-enabled': 'true',
+    'hermes-voice-mode-button': 'true'
+  };
+
+  for (const [key, value] of Object.entries(defaults)) {
+    if (localStorage.getItem(key) === null) {
+      localStorage.setItem(key, value);
+    }
+  }
+
+  if (typeof window._applyTtsEnabled === 'function') {
+    window._applyTtsEnabled(localStorage.getItem('hermes-tts-enabled') === 'true');
+  }
+  if (typeof window._applyVoiceModePref === 'function') {
+    window._applyVoiceModePref();
+  }
+})();
 EOF
 
 cat >"agents/$agent/config/compose.yaml" <<EOF
@@ -89,8 +134,11 @@ services:
       HERMES_HOME: /home/hermeswebui/.hermes
       HERMES_WEBUI_STATE_DIR: /home/hermeswebui/.hermes/webui
       HERMES_WEBUI_DEFAULT_WORKSPACE: /workspace
+      HERMES_WEBUI_SKIP_ONBOARDING: "1"
+      HERMES_WEBUI_EXTENSION_DIR: /home/hermeswebui/.hermes/webui/extensions
+      HERMES_WEBUI_EXTENSION_SCRIPT_URLS: /extensions/default-preferences.js
       HERMES_INFERENCE_PROVIDER: openai-codex
-      HERMES_INFERENCE_MODEL: gpt-5.3-codex
+      HERMES_INFERENCE_MODEL: gpt-5.5
       WANTED_UID: \${UID:-1000}
       WANTED_GID: \${GID:-1000}
     volumes:
@@ -117,9 +165,9 @@ printf 'Cloudflare Tunnel service: http://%s:8787\n' "$webui_service"
 printf '\nStarting OpenAI Codex login. Open the shown URL, enter the code, and approve the ChatGPT subscription login.\n'
 
 docker run -it --rm \
-  -e HERMES_HOME=/opt/data \
+  -e HERMES_HOME=/opt/data/profiles/$agent \
   -e HERMES_INFERENCE_PROVIDER=openai-codex \
-  -e HERMES_INFERENCE_MODEL=gpt-5.3-codex \
+  -e HERMES_INFERENCE_MODEL=gpt-5.5 \
   -e HERMES_UID="$container_uid" \
   -e HERMES_GID="$container_gid" \
   -v "$(pwd)/agents/$agent/data/hermes:/opt/data" \

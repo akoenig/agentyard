@@ -31,6 +31,9 @@ agents/hermy/
   data/
     hermes/
       hermes-agent/
+      profiles/
+        hermy/
+          config.yaml
     workspace/
 ```
 
@@ -99,17 +102,20 @@ scripts/create-agent hermy
 This creates:
 
 - `agents/hermy/config/compose.yaml`
-- `agents/hermy/data/hermes/config.yaml`
+- `agents/hermy/data/hermes/active_profile`
 - `agents/hermy/data/hermes/hermes-agent/`
+- `agents/hermy/data/hermes/profiles/hermy/config.yaml`
+- `agents/hermy/data/hermes/webui/settings.json`
+- `agents/hermy/data/hermes/webui/extensions/default-preferences.js`
 - `agents/hermy/data/workspace/`
 - empty `.env` entry for the Hermes WebUI password, disabled by default because Cloudflare Access is expected to protect the hostname
 
 During creation, the script starts the OpenAI Codex device-code login with the official `nousresearch/hermes-agent` image mounted against the same Hermes home. Open the shown URL, enter the displayed code, and approve the ChatGPT subscription login.
 
-Hermes stores the OAuth credentials in:
+Hermes stores the OAuth credentials in the agent-named active profile:
 
 ```text
-agents/hermy/data/hermes/auth.json
+agents/hermy/data/hermes/profiles/hermy/auth.json
 ```
 
 After login succeeds, the script starts `cloudflared` and `hermy-hermes-webui`.
@@ -121,7 +127,7 @@ The generated Hermes config selects the native Codex provider:
 ```yaml
 model:
   provider: openai-codex
-  model: gpt-5.3-codex
+  model: gpt-5.5
 terminal:
   backend: local
   cwd: /workspace
@@ -130,16 +136,25 @@ terminal:
 Verify the running runtime sees the expected state path and provider overrides:
 
 ```bash
-docker exec hermy-hermes-webui sh -lc 'env | grep -E "HERMES_HOME|HERMES_INFERENCE_PROVIDER|HERMES_INFERENCE_MODEL"'
+docker exec hermy-hermes-webui sh -lc 'env | grep -E "HERMES_HOME|HERMES_WEBUI_SKIP_ONBOARDING|HERMES_INFERENCE_PROVIDER|HERMES_INFERENCE_MODEL"'
 ```
 
 Expected values include:
 
 ```text
 HERMES_HOME=/home/hermeswebui/.hermes
+HERMES_WEBUI_SKIP_ONBOARDING=1
 HERMES_INFERENCE_PROVIDER=openai-codex
-HERMES_INFERENCE_MODEL=gpt-5.3-codex
+HERMES_INFERENCE_MODEL=gpt-5.5
 ```
+
+Generated agents also preseed WebUI defaults:
+
+- notification sound enabled
+- browser notifications enabled, subject to the browser permission prompt
+- token usage visible after responses
+- Text-to-Speech response buttons enabled via a same-origin WebUI extension
+- hands-free voice mode button enabled via the same extension
 
 ### 4. Verify Workspace Mount
 
@@ -293,6 +308,6 @@ scripts/update-agents <tag-or-sha>
 
 ## Models
 
-New agents default to Hermes' native OpenAI Codex provider with `gpt-5.3-codex`.
+New agents default to Hermes' native OpenAI Codex provider with `gpt-5.5`.
 
-To change the model after creation, edit `agents/<agent>/data/hermes/config.yaml` or use Hermes' model picker inside the container.
+To change the model after creation, edit `agents/<agent>/data/hermes/profiles/<agent>/config.yaml` or use Hermes' model picker inside the container.
