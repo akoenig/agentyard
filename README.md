@@ -57,7 +57,7 @@ You need:
 - a Cloudflare account with a Tunnel and Access available
 - a Cloudflare Access SSO identity provider, for example Google, GitHub, Microsoft Entra ID, Okta, or another supported provider
 - a domain routed through Cloudflare, for example `example.com`
-- a ChatGPT subscription that can authenticate the Hermes `openai-codex` provider
+- credentials or a subscription for the Hermes provider you want to use
 
 The server does not need to be publicly exposed. No inbound firewall ports need to be opened for WebUI because Cloudflare Tunnel makes an outbound connection from the host to Cloudflare and forwards traffic to localhost.
 
@@ -132,26 +132,15 @@ This creates Linux user `<agent-name>`, locks its password, enables lingering, i
 ~<agent-name>/.config/systemd/user/agentyard-gateway.service
 ```
 
-The script also configures Hermes Agent for Codex:
+The script configures the agent's default workspace:
 
 ```yaml
-model:
-  provider: openai-codex
-  default: gpt-5.5
 terminal:
   backend: local
   cwd: /home/<agent-name>/workspace
 ```
 
-During creation, Agentyard starts the OpenAI Codex OAuth flow as the `<agent-name>` user. Open the shown URL, enter the code, and approve the ChatGPT subscription login.
-
-The script also asks whether to configure Telegram delivery. If you choose yes, it asks for:
-
-- Telegram bot token from `@BotFather`
-- allowed Telegram user IDs, comma-separated
-- optional home channel/chat ID
-
-You can skip Telegram and configure it later.
+During creation, Agentyard starts `hermes setup` as the `<agent-name>` user. Use the Hermes Agent wizard to choose and authenticate the provider and messaging platforms for that agent.
 
 ## Step 4: Configure Cloudflare SSO
 
@@ -230,36 +219,6 @@ https://<agent-name>.example.com
 ```
 
 Cloudflare Access authenticates the browser. Hermes WebUI then talks to the Hermes runtime owned by the `<agent-name>` Linux user.
-
-## Telegram Home Channel
-
-Telegram settings live inside the agent user's Hermes profile:
-
-```bash
-sudo -iu <agent-name>
-nano ~/.hermes/.env
-```
-
-Example:
-
-```bash
-TELEGRAM_BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrSTUvwxYZ
-TELEGRAM_ALLOWED_USERS=123456789
-TELEGRAM_HOME_CHANNEL=123456789
-TELEGRAM_HOME_CHANNEL_NAME=General
-```
-
-`TELEGRAM_ALLOWED_USERS` is a comma-separated list of numeric Telegram user IDs. Get your ID from `@userinfobot`.
-
-`TELEGRAM_HOME_CHANNEL` is the delivery target. For a DM with the bot, it is usually your Telegram user ID. For groups, it is usually a negative chat ID like `-1001234567890`.
-
-Restart the gateway after edits:
-
-```bash
-systemctl --user restart agentyard-gateway.service
-```
-
-Alternatively, configure the bot token and allowed users, restart the gateway, then send `/sethome` in the Telegram chat you want to use.
 
 ## Operations
 

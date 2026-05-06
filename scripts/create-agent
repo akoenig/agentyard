@@ -79,40 +79,11 @@ printf 'Installing Hermes Agent and WebUI as %s.\n' "$agent"
 sudo "$helper" run-as "$agent" sh -lc "set -eu; cd \"\$HOME\"; PATH=\"\$HOME/.local/bin:\$PATH\"; if ! command -v hermes >/dev/null 2>&1; then curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash; fi; mkdir -p \"$workspace_dir\" \"$unit_dir\"; if [ ! -d \"$webui_dir/.git\" ]; then git clone \"$webui_repo\" \"$webui_dir\"; fi; git -C \"$webui_dir\" fetch origin; git -C \"$webui_dir\" checkout \"$webui_ref\"; python3 -m venv \"$webui_dir/.venv\"; \"$webui_dir/.venv/bin/python\" -m pip install --upgrade pip >/dev/null; \"$webui_dir/.venv/bin/python\" -m pip install -r \"$webui_dir/requirements.txt\""
 
 sudo "$helper" run-as "$agent" sh -lc "cat >\"$profile_dir/config.yaml\" <<'EOF'
-model:
-  provider: openai-codex
-  default: gpt-5.5
 terminal:
   backend: local
   cwd: $workspace_dir
 EOF
-if [ ! -f \"$profile_dir/.env\" ]; then cat >\"$profile_dir/.env\" <<'EOF'
-TELEGRAM_BOT_TOKEN=
-TELEGRAM_ALLOWED_USERS=
-TELEGRAM_HOME_CHANNEL=
-TELEGRAM_HOME_CHANNEL_NAME=General
-EOF
-chmod go-rwx \"$profile_dir/.env\"; fi"
-
-printf 'Optional Telegram setup for %s? [y/N]: ' "$agent"
-IFS= read -r setup_telegram
-case "$setup_telegram" in
-  y | Y | yes | YES)
-    printf 'Telegram bot token: '
-    IFS= read -r telegram_bot_token
-    printf 'Allowed Telegram user IDs (comma-separated): '
-    IFS= read -r telegram_allowed_users
-    printf 'Home channel/chat ID (optional; /sethome can set it later): '
-    IFS= read -r telegram_home_channel
-    sudo "$helper" run-as "$agent" sh -lc "cat >\"$profile_dir/.env\" <<EOF
-TELEGRAM_BOT_TOKEN=$telegram_bot_token
-TELEGRAM_ALLOWED_USERS=$telegram_allowed_users
-TELEGRAM_HOME_CHANNEL=$telegram_home_channel
-TELEGRAM_HOME_CHANNEL_NAME=General
-EOF
-chmod go-rwx \"$profile_dir/.env\""
-    ;;
-esac
+if [ ! -f \"$profile_dir/.env\" ]; then touch \"$profile_dir/.env\"; chmod go-rwx \"$profile_dir/.env\"; fi"
 
 cat >/tmp/agentyard-webui-$agent.service <<EOF
 [Unit]
@@ -148,8 +119,6 @@ Type=simple
 WorkingDirectory=$workspace_dir
 Environment=PATH=$agent_home/.local/bin:/usr/local/bin:/usr/bin:/bin
 Environment=HERMES_HOME=$profile_dir
-Environment=HERMES_INFERENCE_PROVIDER=openai-codex
-Environment=HERMES_INFERENCE_MODEL=gpt-5.5
 ExecStart=$agent_home/.local/bin/hermes gateway run
 Restart=on-failure
 RestartSec=5
@@ -161,8 +130,8 @@ EOF
 sudo "$helper" run-as "$agent" sh -lc "mkdir -p \"$unit_dir\"; cp /tmp/agentyard-webui-$agent.service \"$unit_dir/agentyard-webui.service\"; cp /tmp/agentyard-gateway-$agent.service \"$unit_dir/agentyard-gateway.service\""
 rm -f "/tmp/agentyard-webui-$agent.service" "/tmp/agentyard-gateway-$agent.service"
 
-printf 'Starting OpenAI Codex login as %s. Open the shown URL, enter the code, and approve the ChatGPT subscription login.\n' "$agent"
-sudo "$helper" run-as "$agent" sh -lc "PATH=\"\$HOME/.local/bin:\$PATH\" hermes auth add openai-codex --type oauth"
+printf 'Starting Hermes setup as %s. Use the wizard to choose and authenticate the provider for this agent.\n' "$agent"
+sudo "$helper" run-as "$agent" sh -lc "PATH=\"\$HOME/.local/bin:\$PATH\" hermes setup"
 
 sudo "$helper" run-as "$agent" systemctl --user daemon-reload
 sudo "$helper" run-as "$agent" systemctl --user enable --now agentyard-gateway.service
@@ -174,4 +143,4 @@ printf 'Local service: http://127.0.0.1:%s\n' "$port"
 printf '\nCloudflare Tunnel route to add:\n'
 printf '  Hostname: %s\n' "$webui_host"
 printf '  Service:  http://127.0.0.1:%s\n' "$port"
-printf '\nTelegram settings live at %s/.env. If needed, edit them and restart agentyard-gateway.service as %s.\n' "$profile_dir" "$agent"
+printf '\nProvider and messaging settings live in %s. Re-run hermes setup as %s to change them.\n' "$profile_dir" "$agent"
