@@ -109,32 +109,15 @@ RestartSec=5
 WantedBy=default.target
 EOF
 
-cat >/tmp/agentyard-gateway-$agent.service <<EOF
-[Unit]
-Description=Agentyard Gateway
-After=network-online.target
-
-[Service]
-Type=simple
-WorkingDirectory=$workspace_dir
-Environment=PATH=$agent_home/.local/bin:/usr/local/bin:/usr/bin:/bin
-Environment=HERMES_HOME=$profile_dir
-ExecStart=$agent_home/.local/bin/hermes gateway run
-Restart=on-failure
-RestartSec=5
-
-[Install]
-WantedBy=default.target
-EOF
-
-sudo "$helper" run-as "$agent" sh -lc "mkdir -p \"$unit_dir\"; cp /tmp/agentyard-webui-$agent.service \"$unit_dir/agentyard-webui.service\"; cp /tmp/agentyard-gateway-$agent.service \"$unit_dir/agentyard-gateway.service\""
-rm -f "/tmp/agentyard-webui-$agent.service" "/tmp/agentyard-gateway-$agent.service"
+sudo "$helper" run-as "$agent" sh -lc "mkdir -p \"$unit_dir\"; cp /tmp/agentyard-webui-$agent.service \"$unit_dir/agentyard-webui.service\""
+rm -f "/tmp/agentyard-webui-$agent.service"
 
 printf 'Starting Hermes setup as %s. Use the wizard to choose and authenticate the provider for this agent.\n' "$agent"
-sudo "$helper" run-as "$agent" sh -lc "PATH=\"\$HOME/.local/bin:\$PATH\" hermes setup"
+sudo "$helper" run-as "$agent" sh -lc "PATH=\"\$HOME/.local/bin:\$PATH\" HERMES_HOME=\"$profile_dir\" hermes setup"
 
-sudo "$helper" run-as "$agent" systemctl --user daemon-reload
-sudo "$helper" run-as "$agent" systemctl --user enable --now agentyard-gateway.service
+printf 'Ensuring Hermes gateway service is installed and running as %s.\n' "$agent"
+sudo "$helper" enable-linger "$agent"
+sudo "$helper" run-as "$agent" sh -lc "set -eu; PATH=\"\$HOME/.local/bin:\$PATH\"; export HERMES_HOME=\"$profile_dir\"; systemctl --user daemon-reload; if ! systemctl --user cat hermes-gateway.service >/dev/null 2>&1; then hermes gateway install; systemctl --user daemon-reload; fi; systemctl --user enable hermes-gateway.service >/dev/null 2>&1 || true; hermes gateway start"
 sudo "$helper" run-as "$agent" systemctl --user enable --now agentyard-webui.service
 
 printf '\nAgent %s is ready.\n' "$agent"

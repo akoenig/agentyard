@@ -31,6 +31,7 @@ agent_dir="agents/$agent"
 
 if id "$agent" >/dev/null 2>&1; then
   sudo "$helper" run-as "$agent" systemctl --user disable --now agentyard-webui.service 2>/dev/null || true
+  sudo "$helper" run-as "$agent" systemctl --user disable --now hermes-gateway.service 2>/dev/null || true
   sudo "$helper" run-as "$agent" systemctl --user disable --now agentyard-gateway.service 2>/dev/null || true
   sudo "$helper" delete "$agent"
 fi

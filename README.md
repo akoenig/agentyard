@@ -40,7 +40,7 @@ minder
 
 <agent-name>
   agentyard-webui.service
-  agentyard-gateway.service
+  hermes-gateway.service
   ~/.hermes
   ~/hermes-webui
   ~/workspace
@@ -119,11 +119,11 @@ Create an agent as `minder`:
 agentyard create <agent-name>
 ```
 
-This creates Linux user `<agent-name>`, locks its password, enables lingering, installs Hermes Agent and Hermes WebUI into that user's home directory, and creates these user services:
+This creates Linux user `<agent-name>`, locks its password, enables lingering, installs Hermes Agent and Hermes WebUI into that user's home directory, and ensures these user services exist:
 
 ```text
 ~<agent-name>/.config/systemd/user/agentyard-webui.service
-~<agent-name>/.config/systemd/user/agentyard-gateway.service
+~<agent-name>/.config/systemd/user/hermes-gateway.service
 ```
 
 The script configures the agent's default workspace:
@@ -134,7 +134,7 @@ terminal:
   cwd: /home/<agent-name>/workspace
 ```
 
-During creation, Agentyard starts `hermes setup` as the `<agent-name>` user. Use the Hermes Agent wizard to choose and authenticate the provider and messaging platforms for that agent.
+During creation, Agentyard starts `hermes setup` as the `<agent-name>` user. Use the Hermes Agent wizard to choose and authenticate the provider and messaging platforms for that agent. If the wizard installs the Hermes gateway service, Agentyard uses it. If it does not, Agentyard runs `hermes gateway install` and starts `hermes-gateway.service` for the agent.
 
 ## Step 4: Configure Cloudflare SSO
 
@@ -252,7 +252,7 @@ View logs for one agent:
 
 ```bash
 sudo /usr/local/sbin/agentyard-user run-as <agent-name> journalctl --user -u agentyard-webui.service -f
-sudo /usr/local/sbin/agentyard-user run-as <agent-name> journalctl --user -u agentyard-gateway.service -f
+sudo /usr/local/sbin/agentyard-user run-as <agent-name> journalctl --user -u hermes-gateway.service -f
 ```
 
 ## Update Model
@@ -262,7 +262,7 @@ sudo /usr/local/sbin/agentyard-user run-as <agent-name> journalctl --user -u age
 - `hermes update`
 - `git pull --ff-only` in `~/hermes-webui`
 - rebuilds/updates the WebUI virtualenv from `requirements.txt`
-- restarts `agentyard-gateway.service`
+- ensures lingering and `hermes-gateway.service`
 - restarts `agentyard-webui.service`
 
 `agentyard update-all` runs the same flow sequentially for every registered agent.
