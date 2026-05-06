@@ -69,7 +69,7 @@ On a fresh host, run the public bootstrap installer:
 curl -fsSL https://raw.githubusercontent.com/akoenig/agentyard/main/install.sh | sudo sh
 ```
 
-This clones Agentyard into `~minder/agentyard`, runs the control-plane bootstrap, installs the global `agentyard` command at `/usr/local/bin/agentyard`, and starts the interactive control-plane initialization.
+This clones Agentyard into `~minder/agentyard`, runs the control-plane bootstrap, and installs the global `agentyard` command at `/usr/local/bin/agentyard`.
 
 If you already cloned the repository manually, you can run the bootstrap from the clone instead:
 
@@ -89,7 +89,7 @@ This creates:
 
 ## Step 2: Initialize Agentyard
 
-The public bootstrap installer runs this step automatically. If you need to rerun initialization later, use:
+Run the interactive initializer after the bootstrap installer completes:
 
 ```bash
 agentyard init
