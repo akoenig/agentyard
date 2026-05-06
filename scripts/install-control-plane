@@ -103,6 +103,16 @@ install_packages() {
   fi
 }
 
+remove_user_subid_ranges() {
+  user_name="$1"
+  for file_path in /etc/subuid /etc/subgid; do
+    [ -f "$file_path" ] || continue
+    tmp_file="$file_path.agentyard.$$"
+    grep -v "^$user_name:" "$file_path" >"$tmp_file" || true
+    mv "$tmp_file" "$file_path"
+  done
+}
+
 install_packages
 configure_rootless_docker_host
 
@@ -110,6 +120,7 @@ if ! id "$control_user" >/dev/null 2>&1; then
   useradd --create-home --shell /bin/bash "$control_user"
   passwd -l "$control_user" >/dev/null 2>&1 || true
 fi
+remove_user_subid_ranges "$control_user"
 
 if ! getent group "$agent_group" >/dev/null 2>&1; then
   groupadd --system "$agent_group"
