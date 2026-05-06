@@ -1,11 +1,8 @@
 .env
+agents/*/**
+!agents/.gitkeep
+!agents/*/
+!agents/*/agent.env
 data/**
-agents/*/data/**
-!agents/*/data/
-!agents/*/data/.gitkeep
-!agents/*/data/hermes/
-!agents/*/data/hermes/.gitkeep
-!agents/*/data/workspace/
-!agents/*/data/workspace/.gitkeep
 !data/
 !data/.gitkeep

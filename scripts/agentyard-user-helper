@@ -1,0 +1,57 @@
+#!/usr/bin/env sh
+set -eu
+
+control_user=${AGENTYARD_CONTROL_USER:-minder}
+agent_group=${AGENTYARD_AGENT_GROUP:-agentyard-agents}
+
+usage() {
+  printf 'Usage: %s create|delete|enable-linger|run-as <agent> [command...]\n' "$0" >&2
+  exit 1
+}
+
+valid_agent() {
+  case "$1" in
+    *[!a-z0-9-]* | "" | -* | *- | "$control_user") return 1 ;;
+    *) return 0 ;;
+  esac
+}
+
+[ "$(id -u)" -eq 0 ] || { printf 'agentyard-user-helper must run as root.\n' >&2; exit 1; }
+[ "$#" -ge 2 ] || usage
+
+action="$1"
+agent="$2"
+shift 2
+
+valid_agent "$agent" || { printf 'Invalid agent name: %s\n' "$agent" >&2; exit 1; }
+
+case "$action" in
+  create)
+    if ! getent group "$agent_group" >/dev/null 2>&1; then
+      groupadd --system "$agent_group"
+    fi
+    if ! id "$agent" >/dev/null 2>&1; then
+      useradd --create-home --shell /bin/bash --groups "$agent_group" "$agent"
+      passwd -l "$agent" >/dev/null 2>&1 || true
+    fi
+    loginctl enable-linger "$agent"
+    ;;
+  delete)
+    loginctl disable-linger "$agent" 2>/dev/null || true
+    if id "$agent" >/dev/null 2>&1; then
+      userdel --remove "$agent"
+    fi
+    ;;
+  enable-linger)
+    loginctl enable-linger "$agent"
+    ;;
+  run-as)
+    [ "$#" -gt 0 ] || usage
+    uid=$(id -u "$agent")
+    export XDG_RUNTIME_DIR="/run/user/$uid"
+    exec runuser -u "$agent" -- "$@"
+    ;;
+  *)
+    usage
+    ;;
+esac

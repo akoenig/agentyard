@@ -10,190 +10,168 @@ usage() {
 
 agent="$1"
 case "$agent" in
-  *[!a-z0-9-]* | "" | -* | *-)
-    printf 'Agent name must use lowercase letters, numbers, and hyphens, and cannot start/end with a hyphen.\n' >&2
+  *[!a-z0-9-]* | "" | -* | *- | minder)
+    printf 'Agent name must use lowercase letters, numbers, and hyphens, cannot start/end with a hyphen, and cannot be minder.\n' >&2
     exit 1
     ;;
 esac
 
-agent_env=$(printf '%s' "$agent" | tr '[:lower:]-' '[:upper:]_')
+control_user=${AGENTYARD_CONTROL_USER:-minder}
+helper=${AGENTYARD_HELPER:-/usr/local/sbin/agentyard-user}
+
+[ "$(id -u)" -ne 0 ] || { printf 'Run this script as %s, not root.\n' "$control_user" >&2; exit 1; }
+[ "$(id -un)" = "$control_user" ] || { printf 'Run this script as %s. Current user: %s\n' "$control_user" "$(id -un)" >&2; exit 1; }
+
+repo_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+cd "$repo_dir"
+
+[ -x "$helper" ] || { printf 'Missing helper %s. Run sudo scripts/install-control-plane first.\n' "$helper" >&2; exit 1; }
+
 if [ -f .env ]; then
   set -a
   . ./.env
   set +a
 fi
 
-agent_base_domain=${AGENT_BASE_DOMAIN:-example.com}
-webui_service="$agent-hermes-webui"
-agent_service="$agent-hermes-agent"
-agent_network="$agent-network"
-webui_password_var="HERMES_${agent_env}_WEBUI_PASSWORD"
-telegram_bot_token_var="HERMES_${agent_env}_TELEGRAM_BOT_TOKEN"
-telegram_allowed_users_var="HERMES_${agent_env}_TELEGRAM_ALLOWED_USERS"
-telegram_home_channel_var="HERMES_${agent_env}_TELEGRAM_HOME_CHANNEL"
-telegram_home_channel_name_var="HERMES_${agent_env}_TELEGRAM_HOME_CHANNEL_NAME"
+agent_base_domain=${AGENT_BASE_DOMAIN:-agents.example.com}
+base_port=${AGENT_BASE_PORT:-8787}
+webui_repo=${HERMES_WEBUI_REPO:-https://github.com/nesquena/hermes-webui.git}
+webui_ref=${HERMES_WEBUI_REF:-master}
+agent_dir="$repo_dir/agents/$agent"
 webui_host="$agent.$agent_base_domain"
 
-if [ -d "agents/$agent" ]; then
-  printf 'Agent already exists: %s\n' "$agent" >&2
-  exit 1
-fi
+[ ! -d "$agent_dir" ] || { printf 'Agent already exists: %s\n' "$agent" >&2; exit 1; }
 
-command -v docker >/dev/null 2>&1 || {
-  printf 'docker is required to create an agent and complete Codex login.\n' >&2
-  exit 1
-}
-command -v git >/dev/null 2>&1 || {
-  printf 'git is required to clone Hermes Agent source.\n' >&2
-  exit 1
-}
+port=$base_port
+while :; do
+  in_use=0
+  for env_file in agents/*/agent.env; do
+    [ -f "$env_file" ] || continue
+    existing_port=$(sed -n 's/^PORT=//p' "$env_file" | tail -n 1)
+    [ "$existing_port" = "$port" ] && in_use=1
+  done
+  [ "$in_use" -eq 0 ] && break
+  port=$((port + 1))
+done
 
-hermes_agent_repo=${HERMES_AGENT_REPO:-https://github.com/NousResearch/hermes-agent.git}
-hermes_agent_ref=${HERMES_AGENT_REF:-main}
-hermes_webui_image=${HERMES_WEBUI_IMAGE:-ghcr.io/nesquena/hermes-webui:latest}
-hermes_agent_image=${HERMES_AGENT_IMAGE:-nousresearch/hermes-agent:latest}
+printf 'Creating Linux user %s.\n' "$agent"
+sudo "$helper" create "$agent"
 
-mkdir -p \
-  "agents/$agent/config" \
-  "agents/$agent/data/hermes" \
-  "agents/$agent/data/hermes/profiles/$agent" \
-  "agents/$agent/data/hermes/profiles/$agent/cron" \
-  "agents/$agent/data/hermes/profiles/$agent/home" \
-  "agents/$agent/data/hermes/profiles/$agent/logs" \
-  "agents/$agent/data/hermes/profiles/$agent/memories" \
-  "agents/$agent/data/hermes/profiles/$agent/plans" \
-  "agents/$agent/data/hermes/profiles/$agent/sessions" \
-  "agents/$agent/data/hermes/profiles/$agent/skills" \
-  "agents/$agent/data/hermes/profiles/$agent/skins" \
-  "agents/$agent/data/hermes/profiles/$agent/workspace" \
-  "agents/$agent/data/hermes/webui" \
-  "agents/$agent/data/workspace"
-touch \
-  "agents/$agent/data/.gitkeep" \
-  "agents/$agent/data/hermes/.gitkeep" \
-  "agents/$agent/data/hermes/profiles/$agent/.gitkeep" \
-  "agents/$agent/data/workspace/.gitkeep"
+agent_home=$(getent passwd "$agent" | cut -d: -f6)
+profile_dir="$agent_home/.hermes"
+webui_dir="$agent_home/hermes-webui"
+workspace_dir="$agent_home/workspace"
+unit_dir="$agent_home/.config/systemd/user"
 
-container_uid=${UID:-1000}
-container_gid=${GID:-1000}
-chown -R "$container_uid:$container_gid" "agents/$agent/data" 2>/dev/null || true
+mkdir -p "$agent_dir"
+cat >"$agent_dir/agent.env" <<EOF
+NAME=$agent
+SYSTEM_USER=$agent
+HOSTNAME=$webui_host
+PORT=$port
+AGENT_HOME=$agent_home
+WORKSPACE=$workspace_dir
+WEBUI_DIR=$webui_dir
+HERMES_PROFILE=$profile_dir
+EOF
 
-printf 'Cloning Hermes Agent source (%s @ %s).\n' "$hermes_agent_repo" "$hermes_agent_ref"
-git clone "$hermes_agent_repo" "agents/$agent/data/hermes/hermes-agent"
-git -C "agents/$agent/data/hermes/hermes-agent" checkout "$hermes_agent_ref"
-chown -R "$container_uid:$container_gid" "agents/$agent/data/hermes/hermes-agent" 2>/dev/null || true
+printf 'Installing Hermes Agent and WebUI as %s.\n' "$agent"
+sudo "$helper" run-as "$agent" sh -lc "set -eu; PATH=\"\$HOME/.local/bin:\$PATH\"; if ! command -v hermes >/dev/null 2>&1; then curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash; fi; mkdir -p \"$workspace_dir\" \"$unit_dir\"; if [ ! -d \"$webui_dir/.git\" ]; then git clone \"$webui_repo\" \"$webui_dir\"; fi; git -C \"$webui_dir\" fetch origin; git -C \"$webui_dir\" checkout \"$webui_ref\"; python3 -m venv \"$webui_dir/.venv\"; \"$webui_dir/.venv/bin/python\" -m pip install --upgrade pip >/dev/null; \"$webui_dir/.venv/bin/python\" -m pip install -r \"$webui_dir/requirements.txt\""
 
-printf '%s\n' "$agent" >"agents/$agent/data/hermes/active_profile"
-
-cat >"agents/$agent/data/hermes/profiles/$agent/config.yaml" <<EOF
+sudo "$helper" run-as "$agent" sh -lc "cat >\"$profile_dir/config.yaml\" <<'EOF'
 model:
   provider: openai-codex
   default: gpt-5.5
 terminal:
   backend: local
-  cwd: /workspace
+  cwd: $workspace_dir
+EOF
+if [ ! -f \"$profile_dir/.env\" ]; then cat >\"$profile_dir/.env\" <<'EOF'
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_ALLOWED_USERS=
+TELEGRAM_HOME_CHANNEL=
+TELEGRAM_HOME_CHANNEL_NAME=General
+EOF
+chmod go-rwx \"$profile_dir/.env\"; fi"
+
+printf 'Optional Telegram setup for %s? [y/N]: ' "$agent"
+IFS= read -r setup_telegram
+case "$setup_telegram" in
+  y | Y | yes | YES)
+    printf 'Telegram bot token: '
+    IFS= read -r telegram_bot_token
+    printf 'Allowed Telegram user IDs (comma-separated): '
+    IFS= read -r telegram_allowed_users
+    printf 'Home channel/chat ID (optional; /sethome can set it later): '
+    IFS= read -r telegram_home_channel
+    sudo "$helper" run-as "$agent" sh -lc "cat >\"$profile_dir/.env\" <<EOF
+TELEGRAM_BOT_TOKEN=$telegram_bot_token
+TELEGRAM_ALLOWED_USERS=$telegram_allowed_users
+TELEGRAM_HOME_CHANNEL=$telegram_home_channel
+TELEGRAM_HOME_CHANNEL_NAME=General
+EOF
+chmod go-rwx \"$profile_dir/.env\""
+    ;;
+esac
+
+cat >/tmp/agentyard-webui-$agent.service <<EOF
+[Unit]
+Description=Agentyard WebUI
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=$webui_dir
+Environment=PATH=$agent_home/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=HERMES_HOME=$profile_dir
+Environment=HERMES_WEBUI_STATE_DIR=$agent_home/webui-state
+Environment=HERMES_WEBUI_DEFAULT_WORKSPACE=$workspace_dir
+Environment=HERMES_WEBUI_HOST=127.0.0.1
+Environment=HERMES_WEBUI_PORT=$port
+Environment=HERMES_WEBUI_SKIP_ONBOARDING=1
+Environment=HERMES_EXEC_ASK=1
+ExecStart=$webui_dir/.venv/bin/python $webui_dir/bootstrap.py --no-browser --foreground --host 127.0.0.1 $port
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
 EOF
 
-cat >"agents/$agent/data/hermes/webui/settings.json" <<EOF
-{
-  "onboarding_completed": true,
-  "sound_enabled": true,
-  "notifications_enabled": true,
-  "show_token_usage": true
-}
+cat >/tmp/agentyard-gateway-$agent.service <<EOF
+[Unit]
+Description=Agentyard Gateway
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=$workspace_dir
+Environment=PATH=$agent_home/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=HERMES_HOME=$profile_dir
+Environment=HERMES_INFERENCE_PROVIDER=openai-codex
+Environment=HERMES_INFERENCE_MODEL=gpt-5.5
+ExecStart=$agent_home/.local/bin/hermes gateway run
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
 EOF
 
-cat >"agents/$agent/config/compose.yaml" <<EOF
-services:
-  $agent_service:
-    image: \${HERMES_AGENT_IMAGE:-$hermes_agent_image}
-    container_name: $agent_service
-    command: gateway run
-    restart: unless-stopped
-    environment:
-      HERMES_HOME: /home/hermes/.hermes/profiles/$agent
-      HERMES_INFERENCE_PROVIDER: openai-codex
-      HERMES_INFERENCE_MODEL: gpt-5.5
-      HERMES_UID: \${UID:-1000}
-      HERMES_GID: \${GID:-1000}
-      TELEGRAM_BOT_TOKEN: \${$telegram_bot_token_var}
-      TELEGRAM_ALLOWED_USERS: \${$telegram_allowed_users_var}
-      TELEGRAM_HOME_CHANNEL: \${$telegram_home_channel_var}
-      TELEGRAM_HOME_CHANNEL_NAME: \${$telegram_home_channel_name_var:-General}
-    volumes:
-      - ./agents/$agent/data/hermes:/home/hermes/.hermes
-      - ./agents/$agent/data/workspace:/workspace
-    networks:
-      - $agent_network
+sudo "$helper" run-as "$agent" sh -lc "mkdir -p \"$unit_dir\"; cp /tmp/agentyard-webui-$agent.service \"$unit_dir/agentyard-webui.service\"; cp /tmp/agentyard-gateway-$agent.service \"$unit_dir/agentyard-gateway.service\""
+rm -f "/tmp/agentyard-webui-$agent.service" "/tmp/agentyard-gateway-$agent.service"
 
-  $webui_service:
-    image: \${HERMES_WEBUI_IMAGE:-$hermes_webui_image}
-    container_name: $webui_service
-    depends_on:
-      - $agent_service
-    restart: unless-stopped
-    expose:
-      - "8787"
-    environment:
-      HERMES_WEBUI_HOST: 0.0.0.0
-      HERMES_WEBUI_PORT: "8787"
-      HERMES_WEBUI_PASSWORD: \${$webui_password_var}
-      HERMES_HOME: /home/hermeswebui/.hermes
-      HERMES_WEBUI_STATE_DIR: /home/hermeswebui/.hermes/webui
-      HERMES_WEBUI_DEFAULT_WORKSPACE: /workspace
-      HERMES_WEBUI_SKIP_ONBOARDING: "1"
-      HERMES_INFERENCE_PROVIDER: openai-codex
-      HERMES_INFERENCE_MODEL: gpt-5.5
-      HERMES_EXEC_ASK: "1"
-      WANTED_UID: \${UID:-1000}
-      WANTED_GID: \${GID:-1000}
-    volumes:
-      - ./agents/$agent/data/hermes:/home/hermeswebui/.hermes
-      - ./agents/$agent/data/workspace:/workspace
-    networks:
-      - tunnel
-      - $agent_network
+printf 'Starting OpenAI Codex login as %s. Open the shown URL, enter the code, and approve the ChatGPT subscription login.\n' "$agent"
+sudo "$helper" run-as "$agent" sh -lc "PATH=\"\$HOME/.local/bin:\$PATH\" hermes auth add openai-codex --type oauth"
 
-networks:
-  $agent_network:
-    name: \${COMPOSE_PROJECT_NAME:-agents}-$agent
-EOF
-
-touch .env
-chmod go-rwx .env*
-if ! grep -q "^$webui_password_var=" .env; then
-  {
-    printf '\n# Agent: %s\n' "$agent"
-    printf '%s=\n' "$webui_password_var"
-    printf '%s=\n' "$telegram_bot_token_var"
-    printf '%s=\n' "$telegram_allowed_users_var"
-    printf '%s=\n' "$telegram_home_channel_var"
-    printf '%s=General\n' "$telegram_home_channel_name_var"
-  } >>.env
-  chmod go-rwx .env*
-fi
-
-printf 'Created agent %s.\n' "$agent"
-printf 'WebUI URL: https://%s\n' "$webui_host"
-printf 'Cloudflare Tunnel service: http://%s:8787\n' "$webui_service"
-printf '\nStarting OpenAI Codex login. Open the shown URL, enter the code, and approve the ChatGPT subscription login.\n'
-
-docker run -it --rm \
-  -e HERMES_HOME=/opt/data/profiles/$agent \
-  -e HERMES_INFERENCE_PROVIDER=openai-codex \
-  -e HERMES_INFERENCE_MODEL=gpt-5.5 \
-  -e HERMES_UID="$container_uid" \
-  -e HERMES_GID="$container_gid" \
-  -v "$(pwd)/agents/$agent/data/hermes:/opt/data" \
-  -v "$(pwd)/agents/$agent/data/workspace:/workspace" \
-  "$hermes_agent_image" auth add openai-codex --type oauth
-
-printf '\nStarting shared tunnel and %s.\n' "$webui_service"
-docker compose -f compose.yaml -f "agents/$agent/config/compose.yaml" up -d cloudflared "$agent_service" "$webui_service"
+sudo "$helper" run-as "$agent" systemctl --user daemon-reload
+sudo "$helper" run-as "$agent" systemctl --user enable --now agentyard-gateway.service
+sudo "$helper" run-as "$agent" systemctl --user enable --now agentyard-webui.service
 
 printf '\nAgent %s is ready.\n' "$agent"
-printf 'Open: https://%s\n' "$webui_host"
-printf '\nNext steps:\n'
-printf '1. Add Cloudflare Tunnel public hostname %s -> http://%s:8787.\n' "$webui_host" "$webui_service"
-printf '2. Protect https://%s with Cloudflare Access.\n' "$webui_host"
-printf '3. Optional Telegram delivery: fill %s, %s, and %s in .env, restart %s, then send /sethome in the Telegram chat.\n' "$telegram_bot_token_var" "$telegram_allowed_users_var" "$telegram_home_channel_var" "$agent_service"
+printf 'WebUI: https://%s\n' "$webui_host"
+printf 'Local service: http://127.0.0.1:%s\n' "$port"
+printf '\nCloudflare Tunnel route to add:\n'
+printf '  Hostname: %s\n' "$webui_host"
+printf '  Service:  http://127.0.0.1:%s\n' "$port"
+printf '\nTelegram settings live at %s/.env. If needed, edit them and restart agentyard-gateway.service as %s.\n' "$profile_dir" "$agent"

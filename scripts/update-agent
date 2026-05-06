@@ -2,53 +2,26 @@
 set -eu
 
 usage() {
-  printf 'Usage: %s <agent-name> [agent-ref]\n' "$0" >&2
+  printf 'Usage: %s <agent-name>\n' "$0" >&2
   exit 1
 }
 
-[ "$#" -ge 1 ] && [ "$#" -le 2 ] || usage
+[ "$#" -eq 1 ] || usage
 
 agent="$1"
-agent_ref=${2:-}
-case "$agent" in
-  *[!a-z0-9-]* | "" | -* | *- | _*)
-    printf 'Agent name must use lowercase letters, numbers, and hyphens, cannot start/end with a hyphen, and cannot start with underscore.\n' >&2
-    exit 1
-    ;;
-esac
+helper=${AGENTYARD_HELPER:-/usr/local/sbin/agentyard-user}
+repo_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+cd "$repo_dir"
 
-agent_dir="agents/$agent"
-agent_compose="$agent_dir/config/compose.yaml"
-agent_source="$agent_dir/data/hermes/hermes-agent"
-webui_service="$agent-hermes-webui"
-agent_service="$agent-hermes-agent"
+agent_env="agents/$agent/agent.env"
+[ -f "$agent_env" ] || { printf 'Agent does not exist: %s\n' "$agent" >&2; exit 1; }
+. "$agent_env"
 
-[ -d "$agent_dir" ] || { printf 'Agent does not exist: %s\n' "$agent" >&2; exit 1; }
-[ -f "$agent_compose" ] || { printf 'Missing %s.\n' "$agent_compose" >&2; exit 1; }
-[ -d "$agent_source/.git" ] || { printf 'Missing Hermes Agent git checkout: %s\n' "$agent_source" >&2; exit 1; }
+[ -x "$helper" ] || { printf 'Missing helper %s.\n' "$helper" >&2; exit 1; }
 
-command -v git >/dev/null 2>&1 || { printf 'git is required.\n' >&2; exit 1; }
-command -v docker >/dev/null 2>&1 || { printf 'docker is required.\n' >&2; exit 1; }
-
-if [ -f .env ]; then
-  set -a
-  . ./.env
-  set +a
-fi
-
-printf 'Updating Hermes Agent source for %s.\n' "$agent"
-if [ -n "$agent_ref" ]; then
-  git -C "$agent_source" fetch --tags origin
-  git -C "$agent_source" checkout "$agent_ref"
-else
-  git -C "$agent_source" pull --ff-only
-fi
-
-printf 'Pulling Hermes Agent and WebUI images.\n'
-docker compose -f compose.yaml -f "$agent_compose" pull "$agent_service" "$webui_service"
-
-printf 'Recreating %s and %s so cron and WebUI use the updated runtime.\n' "$agent_service" "$webui_service"
-docker compose -f compose.yaml -f "$agent_compose" rm -sf "$webui_service" "$agent_service"
-docker compose -f compose.yaml -f "$agent_compose" up -d cloudflared "$agent_service" "$webui_service"
+printf 'Updating Hermes Agent and WebUI for %s.\n' "$agent"
+sudo "$helper" run-as "$SYSTEM_USER" sh -lc "set -eu; PATH=\"\$HOME/.local/bin:\$PATH\"; hermes update || true; git -C \"$WEBUI_DIR\" pull --ff-only; python3 -m venv \"$WEBUI_DIR/.venv\"; \"$WEBUI_DIR/.venv/bin/python\" -m pip install --upgrade pip >/dev/null; \"$WEBUI_DIR/.venv/bin/python\" -m pip install -r \"$WEBUI_DIR/requirements.txt\""
+sudo "$helper" run-as "$SYSTEM_USER" systemctl --user restart agentyard-gateway.service
+sudo "$helper" run-as "$SYSTEM_USER" systemctl --user restart agentyard-webui.service
 
 printf 'Updated agent %s.\n' "$agent"

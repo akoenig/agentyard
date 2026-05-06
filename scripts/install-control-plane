@@ -1,0 +1,36 @@
+#!/usr/bin/env sh
+set -eu
+
+[ "$(id -u)" -eq 0 ] || { printf 'Run this script with sudo/root.\n' >&2; exit 1; }
+
+repo_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+control_user=${AGENTYARD_CONTROL_USER:-minder}
+agent_group=${AGENTYARD_AGENT_GROUP:-agentyard-agents}
+helper_path=/usr/local/sbin/agentyard-user
+sudoers_path=/etc/sudoers.d/agentyard
+
+if ! id "$control_user" >/dev/null 2>&1; then
+  useradd --create-home --shell /bin/bash "$control_user"
+  passwd -l "$control_user" >/dev/null 2>&1 || true
+fi
+
+if ! getent group "$agent_group" >/dev/null 2>&1; then
+  groupadd --system "$agent_group"
+fi
+
+install -m 0755 "$repo_dir/scripts/agentyard-user-helper" "$helper_path"
+
+cat >"$sudoers_path" <<EOF
+$control_user ALL=(root) NOPASSWD: $helper_path
+EOF
+chmod 0440 "$sudoers_path"
+
+loginctl enable-linger "$control_user"
+
+printf 'Control-plane user is ready: %s\n' "$control_user"
+printf 'Helper installed: %s\n' "$helper_path"
+printf '\nNext steps:\n'
+printf '  sudo -iu %s\n' "$control_user"
+printf '  git clone <this-repo> ~/agentyard\n'
+printf '  cd ~/agentyard\n'
+printf '  scripts/install\n'

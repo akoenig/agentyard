@@ -1,0 +1,21 @@
+#!/usr/bin/env sh
+set -eu
+
+helper=${AGENTYARD_HELPER:-/usr/local/sbin/agentyard-user}
+repo_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+cd "$repo_dir"
+
+[ -d agents ] || exit 0
+
+for agent_dir in agents/*; do
+  [ -d "$agent_dir" ] || exit 0
+  [ -f "$agent_dir/agent.env" ] || continue
+  . "$agent_dir/agent.env"
+  printf '%s (%s)\n' "$NAME" "$HOSTNAME"
+  if id "$SYSTEM_USER" >/dev/null 2>&1 && [ -x "$helper" ]; then
+    printf '  WebUI: %s\n' "$(sudo "$helper" run-as "$SYSTEM_USER" systemctl --user is-active agentyard-webui.service 2>/dev/null || true)"
+    printf '  Gateway: %s\n' "$(sudo "$helper" run-as "$SYSTEM_USER" systemctl --user is-active agentyard-gateway.service 2>/dev/null || true)"
+  else
+    printf '  System user missing or helper unavailable.\n'
+  fi
+done
