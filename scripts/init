@@ -54,9 +54,46 @@ set_env_value() {
 
 is_cloudflare_tunnel_token() {
   case "$1" in
+    "" | *[[:space:]]*) return 1 ;;
     *.*.*) return 0 ;;
+    eyJ*) return 0 ;;
+    [A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-]*) return 0 ;;
     *) return 1 ;;
   esac
+}
+
+extract_cloudflare_tunnel_token() {
+  previous_word=
+  for word in $1; do
+    word=${word#\"}
+    word=${word%\"}
+    word=${word#'}
+    word=${word%'}
+    case "$previous_word" in
+      --token | install)
+        if is_cloudflare_tunnel_token "$word"; then
+          printf '%s' "$word"
+          return 0
+        fi
+        ;;
+    esac
+    previous_word=$word
+  done
+
+  for word in $1; do
+    word=${word#\"}
+    word=${word%\"}
+    word=${word#'}
+    word=${word%'}
+    case "$word" in
+      cloudflared | sudo | service | install | tunnel | run | --token | http:* | https:*) continue ;;
+    esac
+    if is_cloudflare_tunnel_token "$word"; then
+      printf '%s' "$word"
+      return 0
+    fi
+  done
+  return 1
 }
 
 prompt_if_empty AGENT_BASE_DOMAIN 'Base domain for agent hostnames (example: example.com)'
@@ -65,18 +102,25 @@ if [ -z "${AGENT_BASE_PORT:-}" ]; then
   AGENT_BASE_PORT=8787
 fi
 
-if [ -n "${CLOUDFLARE_TUNNEL_TOKEN:-}" ] && ! is_cloudflare_tunnel_token "$CLOUDFLARE_TUNNEL_TOKEN"; then
-  printf 'Ignoring invalid CLOUDFLARE_TUNNEL_TOKEN value in .env. It should be the JWT tunnel token, not a domain.\n'
-  set_env_value CLOUDFLARE_TUNNEL_TOKEN ""
-  CLOUDFLARE_TUNNEL_TOKEN=
+if [ -n "${CLOUDFLARE_TUNNEL_TOKEN:-}" ]; then
+  extracted_token=$(extract_cloudflare_tunnel_token "$CLOUDFLARE_TUNNEL_TOKEN" || true)
+  if [ -n "$extracted_token" ]; then
+    CLOUDFLARE_TUNNEL_TOKEN=$extracted_token
+    set_env_value CLOUDFLARE_TUNNEL_TOKEN "$CLOUDFLARE_TUNNEL_TOKEN"
+  else
+    printf 'Ignoring invalid CLOUDFLARE_TUNNEL_TOKEN value in .env. It should be the JWT tunnel token, not a domain.\n'
+    set_env_value CLOUDFLARE_TUNNEL_TOKEN ""
+    CLOUDFLARE_TUNNEL_TOKEN=
+  fi
 fi
 
 if [ -z "${CLOUDFLARE_TUNNEL_TOKEN:-}" ]; then
   tunnel_token=$(read_from_tty 'Cloudflare Tunnel token (JWT from Cloudflare, not your domain; leave empty to configure manually): ')
   if [ -n "$tunnel_token" ]; then
-    if is_cloudflare_tunnel_token "$tunnel_token"; then
-        set_env_value CLOUDFLARE_TUNNEL_TOKEN "$tunnel_token"
-        CLOUDFLARE_TUNNEL_TOKEN=$tunnel_token
+    extracted_token=$(extract_cloudflare_tunnel_token "$tunnel_token" || true)
+    if [ -n "$extracted_token" ]; then
+        set_env_value CLOUDFLARE_TUNNEL_TOKEN "$extracted_token"
+        CLOUDFLARE_TUNNEL_TOKEN=$extracted_token
     else
         printf 'That does not look like a Cloudflare Tunnel token. Skipping cloudflared service setup.\n'
         CLOUDFLARE_TUNNEL_TOKEN=
@@ -90,14 +134,16 @@ mkdir -p agents "$HOME/.config/systemd/user" "$HOME/.cloudflared"
 
 if [ -n "${CLOUDFLARE_TUNNEL_TOKEN:-}" ]; then
   if command -v cloudflared >/dev/null 2>&1; then
-    cat >"$HOME/.config/systemd/user/agentyard-cloudflared.service" <<EOF
+    cloudflared_path=$(command -v cloudflared)
+    cloudflared_unit="$HOME/.config/systemd/user/agentyard-cloudflared.service"
+    cat >"$cloudflared_unit" <<EOF
 [Unit]
 Description=Agentyard Cloudflare Tunnel
 After=network-online.target
 
 [Service]
 Type=simple
-ExecStart=$(command -v cloudflared) tunnel run --token $CLOUDFLARE_TUNNEL_TOKEN
+ExecStart=$cloudflared_path tunnel run --token $CLOUDFLARE_TUNNEL_TOKEN
 Restart=on-failure
 RestartSec=5
 
@@ -107,9 +153,12 @@ EOF
     systemctl --user daemon-reload
     systemctl --user enable agentyard-cloudflared.service
     systemctl --user start --no-block agentyard-cloudflared.service
+    printf 'Cloudflare Tunnel service installed: %s\n' "$cloudflared_unit"
   else
     printf 'cloudflared is not installed. Install it, then rerun agentyard init to create the tunnel service.\n'
   fi
+else
+  printf 'No Cloudflare Tunnel token configured; skipping cloudflared service setup.\n'
 fi
 
 printf '\nAgentyard control plane is ready. Create an agent with:\n'
