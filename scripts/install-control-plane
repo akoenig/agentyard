@@ -80,10 +80,12 @@ if [ "\$(id -un)" = "\$control_user" ]; then
 fi
 
 if [ "\$(id -u)" -eq 0 ]; then
-  exec runuser -u "\$control_user" -- "\$cli" "\$@"
+  control_uid=\$(id -u "\$control_user")
+  exec runuser -u "\$control_user" -- env XDG_RUNTIME_DIR="/run/user/\$control_uid" "\$cli" "\$@"
 fi
 
-exec sudo -iu "\$control_user" -- "\$cli" "\$@"
+control_uid=\$(id -u "\$control_user")
+exec sudo -iu "\$control_user" -- env XDG_RUNTIME_DIR="/run/user/\$control_uid" "\$cli" "\$@"
 EOF
 chmod 0755 "$cli_path"
 ln -sf "$cli_path" "$cli_link_path"

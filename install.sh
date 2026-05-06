@@ -43,7 +43,8 @@ chown -R "$control_user:$control_user" "$install_dir"
 
 printf '\nInitializing Agentyard control plane.\n'
 if [ -r /dev/tty ]; then
-  runuser -u "$control_user" -- "$install_dir/agentyard" init </dev/tty
+  control_uid=$(id -u "$control_user")
+  runuser -u "$control_user" -- env XDG_RUNTIME_DIR="/run/user/$control_uid" "$install_dir/agentyard" init </dev/tty
 else
   printf 'No interactive TTY found. Run this manually after bootstrap: agentyard init\n'
 fi
