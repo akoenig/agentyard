@@ -20,6 +20,7 @@ ensure_subid_range() {
   user_name="$1"
   file_path="$2"
   map_path="$3"
+  replace_existing=${4:-0}
   range_size=65536
   map_count=$(awk '$1 == 0 { print $3; exit }' "$map_path" 2>/dev/null || true)
   case "$map_count" in
@@ -27,6 +28,10 @@ ensure_subid_range() {
   esac
 
   [ -f "$file_path" ] || : >"$file_path"
+
+  if [ "$replace_existing" = "1" ]; then
+    remove_subid_range "$user_name" "$file_path"
+  fi
 
   if grep -q "^$user_name:" "$file_path" 2>/dev/null; then
     return 0
@@ -107,8 +112,9 @@ remove_subid_range() {
 
 ensure_agent_runtime() {
   user_name="$1"
-  ensure_subid_range "$user_name" /etc/subuid /proc/self/uid_map
-  ensure_subid_range "$user_name" /etc/subgid /proc/self/gid_map
+  replace_existing=${2:-0}
+  ensure_subid_range "$user_name" /etc/subuid /proc/self/uid_map "$replace_existing"
+  ensure_subid_range "$user_name" /etc/subgid /proc/self/gid_map "$replace_existing"
   loginctl enable-linger "$user_name"
 }
 
@@ -130,14 +136,16 @@ valid_agent "$agent" || { printf 'Invalid agent name: %s\n' "$agent" >&2; exit 1
 
 case "$action" in
   create)
+    created_agent=0
     if ! getent group "$agent_group" >/dev/null 2>&1; then
       groupadd --system "$agent_group"
     fi
     if ! id "$agent" >/dev/null 2>&1; then
       useradd --create-home --shell /bin/bash --groups "$agent_group" "$agent"
       passwd -l "$agent" >/dev/null 2>&1 || true
+      created_agent=1
     fi
-    ensure_agent_runtime "$agent"
+    ensure_agent_runtime "$agent" "$created_agent"
     ;;
   delete)
     remove_agent_runtime "$agent"
