@@ -19,22 +19,104 @@ valid_agent() {
 ensure_subid_range() {
   user_name="$1"
   file_path="$2"
+  map_path="$3"
+  range_size=65536
+  map_count=$(awk '$1 == 0 { print $3; exit }' "$map_path" 2>/dev/null || true)
+  case "$map_count" in
+    "" | *[!0-9]*) map_count=4294967295 ;;
+  esac
+
+  [ -f "$file_path" ] || : >"$file_path"
+
   if grep -q "^$user_name:" "$file_path" 2>/dev/null; then
     return 0
   fi
 
-  start_id=165536
-  if [ -s "$file_path" ]; then
-    last_line=$(tail -n 1 "$file_path")
-    last_start=$(printf '%s' "$last_line" | cut -d: -f2)
-    last_count=$(printf '%s' "$last_line" | cut -d: -f3)
-    case "$last_start:$last_count" in
-      *[!0-9:]* | :* | *:) start_id=165536 ;;
-      *) start_id=$((last_start + last_count)) ;;
-    esac
+  if [ "$map_count" -lt "$range_size" ]; then
+    printf 'Not enough user-namespace id space for rootless Docker: %s only maps %s IDs.\n' "$map_path" "$map_count" >&2
+    exit 1
   fi
 
-  printf '%s:%s:65536\n' "$user_name" "$start_id" >>"$file_path"
+  max_start=$((map_count - range_size))
+  start_id=100000
+  if [ "$start_id" -gt "$max_start" ]; then
+    start_id=$max_start
+  fi
+
+  candidate=$start_id
+  while [ "$candidate" -le "$max_start" ]; do
+    if ! subid_range_in_use "$user_name" "$file_path" "$candidate" "$range_size"; then
+      set_subid_range "$user_name" "$file_path" "$candidate" "$range_size"
+      return 0
+    fi
+    candidate=$((candidate + range_size))
+  done
+
+  candidate=65536
+  while [ "$candidate" -le "$max_start" ]; do
+    if ! subid_range_in_use "$user_name" "$file_path" "$candidate" "$range_size"; then
+      set_subid_range "$user_name" "$file_path" "$candidate" "$range_size"
+      return 0
+    fi
+    candidate=$((candidate + range_size))
+  done
+
+  printf 'No free subordinate id range remains in %s for %s. Increase the LXC idmap or remove unused agent ranges.\n' "$file_path" "$user_name" >&2
+  exit 1
+}
+
+subid_range_in_use() {
+  user_name="$1"
+  file_path="$2"
+  candidate_start="$3"
+  candidate_count="$4"
+  candidate_end=$((candidate_start + candidate_count))
+
+  while IFS=: read -r existing_user existing_start existing_count _; do
+    [ -n "$existing_user" ] || continue
+    [ "$existing_user" != "$user_name" ] || continue
+    [ "$existing_user" != root ] || continue
+    case "$existing_start:$existing_count" in
+      *[!0-9:]* | :* | *:) continue ;;
+    esac
+    existing_end=$((existing_start + existing_count))
+    if [ "$candidate_start" -lt "$existing_end" ] && [ "$candidate_end" -gt "$existing_start" ]; then
+      return 0
+    fi
+  done <"$file_path"
+
+  return 1
+}
+
+set_subid_range() {
+  user_name="$1"
+  file_path="$2"
+  start_id="$3"
+  range_size="$4"
+  printf '%s:%s:%s\n' "$user_name" "$start_id" "$range_size" >>"$file_path"
+}
+
+remove_subid_range() {
+  user_name="$1"
+  file_path="$2"
+  tmp_file="$file_path.agentyard.$$"
+  [ -f "$file_path" ] || return 0
+  grep -v "^$user_name:" "$file_path" >"$tmp_file" || true
+  mv "$tmp_file" "$file_path"
+}
+
+ensure_agent_runtime() {
+  user_name="$1"
+  ensure_subid_range "$user_name" /etc/subuid /proc/self/uid_map
+  ensure_subid_range "$user_name" /etc/subgid /proc/self/gid_map
+  loginctl enable-linger "$user_name"
+}
+
+remove_agent_runtime() {
+  user_name="$1"
+  loginctl disable-linger "$user_name" 2>/dev/null || true
+  remove_subid_range "$user_name" /etc/subuid
+  remove_subid_range "$user_name" /etc/subgid
 }
 
 [ "$(id -u)" -eq 0 ] || { printf 'agentyard-user-helper must run as root.\n' >&2; exit 1; }
@@ -55,12 +137,10 @@ case "$action" in
       useradd --create-home --shell /bin/bash --groups "$agent_group" "$agent"
       passwd -l "$agent" >/dev/null 2>&1 || true
     fi
-    ensure_subid_range "$agent" /etc/subuid
-    ensure_subid_range "$agent" /etc/subgid
-    loginctl enable-linger "$agent"
+    ensure_agent_runtime "$agent"
     ;;
   delete)
-    loginctl disable-linger "$agent" 2>/dev/null || true
+    remove_agent_runtime "$agent"
     if id "$agent" >/dev/null 2>&1; then
       loginctl terminate-user "$agent" 2>/dev/null || true
       sleep 1
@@ -73,7 +153,7 @@ case "$action" in
     fi
     ;;
   enable-linger)
-    loginctl enable-linger "$agent"
+    ensure_agent_runtime "$agent"
     ;;
   run-as)
     [ "$#" -gt 0 ] || usage

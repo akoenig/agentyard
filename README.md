@@ -61,6 +61,38 @@ You need:
 
 The server does not need to be publicly exposed. No inbound firewall ports need to be opened for WebUI because Cloudflare Tunnel makes an outbound connection from the host to Cloudflare and forwards traffic to localhost.
 
+### Proxmox LXC Note
+
+If you run Agentyard inside an unprivileged Proxmox LXC and want Hermes Docker-backed tools, rootless Docker needs nested user namespaces. Enable nesting for the CT and make enough subordinate UID/GID space available on the Proxmox host.
+
+On the Proxmox host, inspect the CT config:
+
+```bash
+pct config <CTID>
+```
+
+The CT needs settings like:
+
+```text
+features: nesting=1,keyctl=1
+lxc.idmap: u 0 100000 165536
+lxc.idmap: g 0 100000 165536
+lxc.mount.entry: /dev/net/tun dev/net/tun none bind,create=file
+```
+
+The Proxmox host also needs matching subordinate ranges for root. A conservative way is to keep the default range and append the extra range:
+
+```bash
+cp -a /etc/subuid /etc/subuid.bak.$(date +%Y%m%d-%H%M%S)
+cp -a /etc/subgid /etc/subgid.bak.$(date +%Y%m%d-%H%M%S)
+echo 'root:165536:100000' >> /etc/subuid
+echo 'root:165536:100000' >> /etc/subgid
+```
+
+This allows the CT mapping `100000-265535` without replacing the existing `root:100000:65536` entry. Agentyard allocates each new agent's `/etc/subuid` and `/etc/subgid` ranges from the ID space available inside the CT. The example above is enough for one rootless-Docker agent. For multiple agents, increase the CT idmap and host subordinate range by roughly `65536` IDs per additional agent.
+
+Security tradeoff: this gives the unprivileged CT a larger host UID/GID mapping range and enables more kernel namespace features. It does not make CT root equal host root, and Agentyard still avoids the root Docker socket, but it expands the kernel/container attack surface. For the strongest isolation boundary, run Agentyard in a VM instead of LXC.
+
 ## Step 1: Bootstrap The Control Plane
 
 On a fresh host, run the public bootstrap installer:
