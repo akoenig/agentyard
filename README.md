@@ -5,7 +5,7 @@ Agentyard makes it easy to create and operate isolated Hermes Agent + Hermes Web
 The runtime model is intentionally simple:
 
 - `minder` is the non-root control-plane user.
-- each agent is its own non-root Linux user, for example `hermy` or `coder`.
+- each agent is its own non-root Linux user, for example `atlas` or `coder`.
 - Cloudflare Tunnel runs as the non-root `minder` user.
 - Hermes Agent, Hermes WebUI, credentials, memory, cron jobs, and workspace files live inside each agent user's home directory.
 - no Docker is used.
@@ -14,11 +14,11 @@ The runtime model is intentionally simple:
 
 ```text
 Browser
-  -> https://hermy.agents.example.com
+  -> https://atlas.example.com
   -> Cloudflare Access
   -> Cloudflare Tunnel owned by minder
   -> http://127.0.0.1:8787
-  -> agentyard-webui.service owned by hermy
+  -> agentyard-webui.service owned by atlas
 ```
 
 Users and services:
@@ -27,9 +27,9 @@ Users and services:
 minder
   agentyard-cloudflared.service
   ~/agentyard
-  ~/agentyard/agents/hermy/agent.env
+  ~/agentyard/agents/atlas/agent.env
 
-hermy
+atlas
   agentyard-webui.service
   agentyard-gateway.service
   ~/.hermes
@@ -45,28 +45,26 @@ You need:
 
 - a Linux host with `systemd`
 - root or sudo access for the initial bootstrap only
-- `git`, `curl`, `python3`, `python3-venv`, and `sudo`
+- a supported package manager if required packages are missing: `apt-get`, `dnf`, `yum`, `zypper`, `pacman`, or `apk`
 - `cloudflared` installed if Agentyard should manage the tunnel service
 - a Cloudflare account with a Tunnel and Access available
-- a domain routed through Cloudflare, for example `agents.example.com`
+- a Cloudflare Access SSO identity provider, for example Google, GitHub, Microsoft Entra ID, Okta, or another supported provider
+- a domain routed through Cloudflare, for example `example.com`
 - a ChatGPT subscription that can authenticate the Hermes `openai-codex` provider
 
-Recommended host model:
-
-- one host per human user
-- many agent users on that host
-- each agent hostname protected by Cloudflare Access
+The server does not need to be publicly exposed. No inbound firewall ports need to be opened for WebUI because Cloudflare Tunnel makes an outbound connection from the host to Cloudflare and forwards traffic to localhost.
 
 ## Step 1: Bootstrap The Control Plane
 
 Clone the repository as any temporary/admin user, then run the bootstrap with root privileges:
 
 ```bash
-sudo scripts/install-control-plane
+sudo ./agentyard install-control-plane
 ```
 
 This creates:
 
+- required system packages when missing: `git`, `curl`, `python3`, `python3-venv` or equivalent, and `sudo`
 - Linux user `minder`
 - system group `agentyard-agents`
 - root-owned helper `/usr/local/sbin/agentyard-user`
@@ -86,14 +84,14 @@ cd ~/agentyard
 Run the control-plane installer as `minder`:
 
 ```bash
-scripts/install
+./agentyard install
 ```
 
 The installer creates `.env` from `.env.example` if needed and asks for missing required values.
 
 You will be prompted for:
 
-- `AGENT_BASE_DOMAIN`, for example `agents.example.com`
+- `AGENT_BASE_DOMAIN`, for example `example.com`
 - `AGENT_BASE_PORT`, for example `8787`
 - `CLOUDFLARE_TUNNEL_TOKEN`, optional but recommended if Agentyard should run `cloudflared`
 
@@ -110,14 +108,14 @@ The Cloudflare Tunnel daemon runs as `minder`, not root.
 Create an agent as `minder`:
 
 ```bash
-scripts/create-agent hermy
+./agentyard create atlas
 ```
 
-This creates Linux user `hermy`, locks its password, enables lingering, installs Hermes Agent and Hermes WebUI into `hermy`'s home directory, and creates these user services:
+This creates Linux user `atlas`, locks its password, enables lingering, installs Hermes Agent and Hermes WebUI into `atlas`'s home directory, and creates these user services:
 
 ```text
-~hermy/.config/systemd/user/agentyard-webui.service
-~hermy/.config/systemd/user/agentyard-gateway.service
+~atlas/.config/systemd/user/agentyard-webui.service
+~atlas/.config/systemd/user/agentyard-gateway.service
 ```
 
 The script also configures Hermes Agent for Codex:
@@ -128,10 +126,10 @@ model:
   default: gpt-5.5
 terminal:
   backend: local
-  cwd: /home/hermy/workspace
+  cwd: /home/atlas/workspace
 ```
 
-During creation, Agentyard starts the OpenAI Codex OAuth flow as the `hermy` user. Open the shown URL, enter the code, and approve the ChatGPT subscription login.
+During creation, Agentyard starts the OpenAI Codex OAuth flow as the `atlas` user. Open the shown URL, enter the code, and approve the ChatGPT subscription login.
 
 The script also asks whether to configure Telegram delivery. If you choose yes, it asks for:
 
@@ -141,44 +139,68 @@ The script also asks whether to configure Telegram delivery. If you choose yes, 
 
 You can skip Telegram and configure it later.
 
-## Step 4: Configure Cloudflare Route
+## Step 4: Configure Cloudflare SSO
+
+Cloudflare Access SSO is required because WebUI is exposed through Cloudflare, not directly through public server ports.
+
+Configure an identity provider in Cloudflare Zero Trust:
+
+1. Open the Cloudflare Zero Trust dashboard at `https://one.dash.cloudflare.com/`.
+2. Select the Cloudflare account that owns the tunnel and Access applications.
+3. Go to `Settings` -> `Authentication` -> `Login methods`.
+4. Add an identity provider such as Google, GitHub, Microsoft Entra ID, Okta, or another provider your organization uses.
+5. Complete the provider-specific OAuth/SAML setup and save it.
+6. Use Cloudflare's provider test action to confirm SSO works before exposing an agent hostname.
+
+For Google SSO, create a Google OAuth app with application type `Web application`, then use the Cloudflare Access team domain values:
+
+```text
+Authorized JavaScript origin: https://<your-team-name>.cloudflareaccess.com
+Authorized redirect URI:      https://<your-team-name>.cloudflareaccess.com/cdn-cgi/access/callback
+```
+
+Enable PKCE if Cloudflare offers that option for the provider.
+
+## Step 5: Configure Cloudflare Route
 
 After agent creation, the script prints the Cloudflare route to add:
 
 ```text
-Hostname: hermy.agents.example.com
+Hostname: atlas.example.com
 Service:  http://127.0.0.1:8787
 ```
 
-Add that public hostname to your Cloudflare Tunnel. Then protect the hostname with a Cloudflare Access application.
+Add that public hostname to your Cloudflare Tunnel. Then protect the hostname with a Cloudflare Access application that uses your configured SSO provider.
 
 Recommended Access policy:
 
 ```text
-Application: hermy.agents.example.com
+Application: atlas.example.com
 Policy: Allow
 Include: Emails
 Email: assigned-user@example.com
 ```
 
-Each WebUI listens only on `127.0.0.1`, so the host does not expose WebUI ports directly to the public network.
+Create one Access application per agent hostname. Avoid broad `Everyone`, domain-wide, or organization-wide allow policies unless the agent should be shared by that full group.
 
-## Step 5: Open WebUI
+Each WebUI listens only on `127.0.0.1`, so the host does not expose WebUI ports directly to the public network. Cloudflare Tunnel is outbound-only, so no public port opening is required.
+
+## Step 6: Open WebUI
 
 Open:
 
 ```text
-https://hermy.agents.example.com
+https://atlas.example.com
 ```
 
-Cloudflare Access authenticates the browser. Hermes WebUI then talks to the Hermes runtime owned by the `hermy` Linux user.
+Cloudflare Access authenticates the browser. Hermes WebUI then talks to the Hermes runtime owned by the `atlas` Linux user.
 
 ## Telegram Home Channel
 
 Telegram settings live inside the agent user's Hermes profile:
 
 ```bash
-sudo -iu hermy
+sudo -iu atlas
 nano ~/.hermes/.env
 ```
 
@@ -210,43 +232,43 @@ Run these as `minder` from `~/agentyard`.
 List agents:
 
 ```bash
-scripts/list-agents
+./agentyard list
 ```
 
 Show service status:
 
 ```bash
-scripts/status
+./agentyard status
 ```
 
 Update one agent:
 
 ```bash
-scripts/update-agent hermy
+./agentyard update atlas
 ```
 
 Update all agents:
 
 ```bash
-scripts/update-agents
+./agentyard update-all
 ```
 
 Delete an agent and its Linux user:
 
 ```bash
-scripts/delete-agent hermy
+./agentyard delete atlas
 ```
 
 View logs for one agent:
 
 ```bash
-sudo /usr/local/sbin/agentyard-user run-as hermy journalctl --user -u agentyard-webui.service -f
-sudo /usr/local/sbin/agentyard-user run-as hermy journalctl --user -u agentyard-gateway.service -f
+sudo /usr/local/sbin/agentyard-user run-as atlas journalctl --user -u agentyard-webui.service -f
+sudo /usr/local/sbin/agentyard-user run-as atlas journalctl --user -u agentyard-gateway.service -f
 ```
 
 ## Update Model
 
-`scripts/update-agent <agent>` runs the update inside that agent's Linux user:
+`./agentyard update <agent>` runs the update inside that agent's Linux user:
 
 - `hermes update`
 - `git pull --ff-only` in `~/hermes-webui`
@@ -254,7 +276,7 @@ sudo /usr/local/sbin/agentyard-user run-as hermy journalctl --user -u agentyard-
 - restarts `agentyard-gateway.service`
 - restarts `agentyard-webui.service`
 
-`scripts/update-agents` runs the same flow sequentially for every registered agent.
+`./agentyard update-all` runs the same flow sequentially for every registered agent.
 
 ## Passwords And Users
 

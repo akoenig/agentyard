@@ -8,6 +8,43 @@ control_user=${AGENTYARD_CONTROL_USER:-minder}
 agent_group=${AGENTYARD_AGENT_GROUP:-agentyard-agents}
 helper_path=/usr/local/sbin/agentyard-user
 sudoers_path=/etc/sudoers.d/agentyard
+required_commands="git curl python3 sudo"
+
+install_packages() {
+  missing=""
+  for command_name in $required_commands; do
+    if ! command -v "$command_name" >/dev/null 2>&1; then
+      missing="$missing $command_name"
+    fi
+  done
+
+  if ! python3 -m venv --help >/dev/null 2>&1; then
+    missing="$missing python3-venv"
+  fi
+
+  [ -n "$missing" ] || return 0
+
+  printf 'Installing required packages:%s\n' "$missing"
+  if command -v apt-get >/dev/null 2>&1; then
+    apt-get update
+    apt-get install -y git curl python3 python3-venv sudo
+  elif command -v dnf >/dev/null 2>&1; then
+    dnf install -y git curl python3 python3-pip sudo
+  elif command -v yum >/dev/null 2>&1; then
+    yum install -y git curl python3 python3-pip sudo
+  elif command -v zypper >/dev/null 2>&1; then
+    zypper --non-interactive install git curl python3 python3-venv sudo
+  elif command -v pacman >/dev/null 2>&1; then
+    pacman -Sy --noconfirm git curl python sudo
+  elif command -v apk >/dev/null 2>&1; then
+    apk add git curl python3 py3-virtualenv sudo
+  else
+    printf 'Unsupported package manager. Install these packages manually:%s\n' "$missing" >&2
+    exit 1
+  fi
+}
+
+install_packages
 
 if ! id "$control_user" >/dev/null 2>&1; then
   useradd --create-home --shell /bin/bash "$control_user"

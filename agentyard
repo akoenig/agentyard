@@ -1,0 +1,61 @@
+#!/usr/bin/env sh
+set -eu
+
+repo_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+
+usage() {
+  cat <<'EOF'
+Usage: ./agentyard <command> [args]
+
+Commands:
+  install-control-plane      Bootstrap minder and the root helper (run with sudo)
+  install                    Configure the minder control plane
+  create <agent>             Create an agent Linux user and services
+  delete <agent>             Delete an agent Linux user and local registry entry
+  list                       List configured agents
+  status                     Show agent service status
+  update <agent>             Update one agent
+  update-all                 Update all agents
+  help                       Show this help
+EOF
+}
+
+[ "$#" -gt 0 ] || { usage; exit 1; }
+
+command_name="$1"
+shift
+
+case "$command_name" in
+  install-control-plane)
+    exec "$repo_dir/scripts/install-control-plane" "$@"
+    ;;
+  install)
+    exec "$repo_dir/scripts/install" "$@"
+    ;;
+  create | create-agent)
+    exec "$repo_dir/scripts/create-agent" "$@"
+    ;;
+  delete | delete-agent)
+    exec "$repo_dir/scripts/delete-agent" "$@"
+    ;;
+  list | list-agents)
+    exec "$repo_dir/scripts/list-agents" "$@"
+    ;;
+  status)
+    exec "$repo_dir/scripts/status" "$@"
+    ;;
+  update | update-agent)
+    exec "$repo_dir/scripts/update-agent" "$@"
+    ;;
+  update-all | update-agents)
+    exec "$repo_dir/scripts/update-agents" "$@"
+    ;;
+  help | -h | --help)
+    usage
+    ;;
+  *)
+    printf 'Unknown command: %s\n\n' "$command_name" >&2
+    usage >&2
+    exit 1
+    ;;
+esac
