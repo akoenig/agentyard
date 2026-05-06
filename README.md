@@ -5,7 +5,7 @@ Agentyard makes it easy to create and operate isolated [Hermes Agent](https://he
 The runtime model is intentionally simple:
 
 - `minder` is the non-root control-plane user.
-- each agent is its own non-root Linux user, for example `atlas` or `coder`.
+- each agent is its own non-root Linux user named after the agent.
 - Cloudflare Tunnel runs as the non-root `minder` user.
 - [Hermes Agent](https://hermes-agent.nousresearch.com/), [Hermes WebUI](https://github.com/nesquena/hermes-webui), credentials, memory, cron jobs, and workspace files live inside each agent user's home directory.
 - no Docker is used.
@@ -18,7 +18,7 @@ Browser
   -> Cloudflare Access
   -> Cloudflare Tunnel owned by minder
   -> http://127.0.0.1:8787
-  -> agentyard-webui.service owned by atlas
+  -> agentyard-webui.service owned by <agent-name>
 ```
 
 Users and services:
@@ -27,9 +27,9 @@ Users and services:
 minder
   agentyard-cloudflared.service
   ~/agentyard
-  ~/agentyard/agents/atlas/agent.env
+  ~/agentyard/agents/<agent-name>/agent.env
 
-atlas
+<agent-name>
   agentyard-webui.service
   agentyard-gateway.service
   ~/.hermes
@@ -106,14 +106,14 @@ The Cloudflare Tunnel daemon runs as `minder`, not root.
 Create an agent as `minder`:
 
 ```bash
-./agentyard create atlas
+./agentyard create <agent-name>
 ```
 
-This creates Linux user `atlas`, locks its password, enables lingering, installs Hermes Agent and Hermes WebUI into `atlas`'s home directory, and creates these user services:
+This creates Linux user `<agent-name>`, locks its password, enables lingering, installs Hermes Agent and Hermes WebUI into that user's home directory, and creates these user services:
 
 ```text
-~atlas/.config/systemd/user/agentyard-webui.service
-~atlas/.config/systemd/user/agentyard-gateway.service
+~<agent-name>/.config/systemd/user/agentyard-webui.service
+~<agent-name>/.config/systemd/user/agentyard-gateway.service
 ```
 
 The script also configures Hermes Agent for Codex:
@@ -124,10 +124,10 @@ model:
   default: gpt-5.5
 terminal:
   backend: local
-  cwd: /home/atlas/workspace
+  cwd: /home/<agent-name>/workspace
 ```
 
-During creation, Agentyard starts the OpenAI Codex OAuth flow as the `atlas` user. Open the shown URL, enter the code, and approve the ChatGPT subscription login.
+During creation, Agentyard starts the OpenAI Codex OAuth flow as the `<agent-name>` user. Open the shown URL, enter the code, and approve the ChatGPT subscription login.
 
 The script also asks whether to configure Telegram delivery. If you choose yes, it asks for:
 
@@ -185,7 +185,7 @@ Then protect the hostname with a Cloudflare Access application that uses your co
 1. In Cloudflare Zero Trust, go to **Access controls** -> **Applications**.
 2. Select **Add an application**.
 3. Select **Self-hosted**.
-4. Enter a name such as `atlas`.
+4. Enter a name such as `<agent-name>`.
 5. Select **Add public hostname** and set the domain to `<agent-name>.example.com`.
 6. Add an Allow policy for the assigned user or group.
 7. Select the identity provider you configured in Step 4.
@@ -213,14 +213,14 @@ Open:
 https://<agent-name>.example.com
 ```
 
-Cloudflare Access authenticates the browser. Hermes WebUI then talks to the Hermes runtime owned by the `atlas` Linux user.
+Cloudflare Access authenticates the browser. Hermes WebUI then talks to the Hermes runtime owned by the `<agent-name>` Linux user.
 
 ## Telegram Home Channel
 
 Telegram settings live inside the agent user's Hermes profile:
 
 ```bash
-sudo -iu atlas
+sudo -iu <agent-name>
 nano ~/.hermes/.env
 ```
 
@@ -264,7 +264,7 @@ Show service status:
 Update one agent:
 
 ```bash
-./agentyard update atlas
+./agentyard update <agent-name>
 ```
 
 Update all agents:
@@ -276,14 +276,14 @@ Update all agents:
 Delete an agent and its Linux user:
 
 ```bash
-./agentyard delete atlas
+./agentyard delete <agent-name>
 ```
 
 View logs for one agent:
 
 ```bash
-sudo /usr/local/sbin/agentyard-user run-as atlas journalctl --user -u agentyard-webui.service -f
-sudo /usr/local/sbin/agentyard-user run-as atlas journalctl --user -u agentyard-gateway.service -f
+sudo /usr/local/sbin/agentyard-user run-as <agent-name> journalctl --user -u agentyard-webui.service -f
+sudo /usr/local/sbin/agentyard-user run-as <agent-name> journalctl --user -u agentyard-gateway.service -f
 ```
 
 ## Update Model
