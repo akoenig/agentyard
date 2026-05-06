@@ -11,43 +11,6 @@ Agentyard makes it easy to create and operate isolated [Hermes Agent](https://he
 - Bootstrap a fresh Ubuntu/Debian host with one public `curl | sudo sh` installer.
 - Use native system users and systemd for Agentyard itself while installing Docker Engine for Hermes features that need it.
 
-The runtime model is intentionally simple:
-
-- `minder` is the non-root control-plane user.
-- each agent is its own non-root Linux user named after the agent.
-- Cloudflare Tunnel runs as the non-root `minder` user.
-- [Hermes Agent](https://hermes-agent.nousresearch.com/), [Hermes WebUI](https://github.com/nesquena/hermes-webui), credentials, memory, cron jobs, and workspace files live inside each agent user's home directory.
-- Agentyard does not run agents as Docker containers. Docker Engine and rootless Docker extras are installed so each agent can run its own user-scoped Docker daemon for Hermes features that need a local Docker backend.
-
-## Architecture
-
-```text
-Browser
-  -> https://<agent-name>.example.com
-  -> Cloudflare Access
-  -> Cloudflare Tunnel owned by minder
-  -> http://127.0.0.1:8787
-  -> agentyard-webui.service owned by <agent-name>
-```
-
-Users and services:
-
-```text
-minder
-  agentyard-cloudflared.service
-  ~/agentyard
-  ~/agentyard/agents/<agent-name>/agent.env
-
-<agent-name>
-  agentyard-webui.service
-  hermes-gateway.service
-  ~/.hermes
-  ~/hermes-webui
-  ~/workspace
-```
-
-Root is only needed for one-time control-plane bootstrap and narrow OS account operations through `/usr/local/sbin/agentyard-user`. No long-running daemon runs as root.
-
 ## Requirements
 
 You need:
@@ -61,39 +24,9 @@ You need:
 
 The server does not need to be publicly exposed. No inbound firewall ports need to be opened for WebUI because Cloudflare Tunnel makes an outbound connection from the host to Cloudflare and forwards traffic to localhost.
 
-### Proxmox LXC Note
+## Usage
 
-If you run Agentyard inside an unprivileged Proxmox LXC and want Hermes Docker-backed tools, rootless Docker needs nested user namespaces. Enable nesting for the CT and make enough subordinate UID/GID space available on the Proxmox host.
-
-On the Proxmox host, inspect the CT config:
-
-```bash
-pct config <CTID>
-```
-
-The CT needs settings like:
-
-```text
-features: nesting=1,keyctl=1
-lxc.idmap: u 0 100000 165536
-lxc.idmap: g 0 100000 165536
-lxc.mount.entry: /dev/net/tun dev/net/tun none bind,create=file
-```
-
-The Proxmox host also needs matching subordinate ranges for root. A conservative way is to keep the default range and append the extra range:
-
-```bash
-cp -a /etc/subuid /etc/subuid.bak.$(date +%Y%m%d-%H%M%S)
-cp -a /etc/subgid /etc/subgid.bak.$(date +%Y%m%d-%H%M%S)
-echo 'root:165536:100000' >> /etc/subuid
-echo 'root:165536:100000' >> /etc/subgid
-```
-
-This allows the CT mapping `100000-265535` without replacing the existing `root:100000:65536` entry. Agentyard allocates each new agent's `/etc/subuid` and `/etc/subgid` ranges from the ID space available inside the CT. The example above is enough for one rootless-Docker agent. For multiple agents, increase the CT idmap and host subordinate range by roughly `65536` IDs per additional agent.
-
-Security tradeoff: this gives the unprivileged CT a larger host UID/GID mapping range and enables more kernel namespace features. It does not make CT root equal host root, and Agentyard still avoids the root Docker socket, but it expands the kernel/container attack surface. For the strongest isolation boundary, run Agentyard in a VM instead of LXC.
-
-## Step 1: Bootstrap The Control Plane
+### Step 1: Bootstrap The Control Plane
 
 On a fresh host, run the public bootstrap installer:
 
@@ -119,7 +52,7 @@ This creates:
 - sudoers rule allowing `minder` to run only that helper without a password
 - lingering for `minder`, so its user services can run after logout
 
-## Step 2: Initialize Agentyard
+### Step 2: Initialize Agentyard
 
 Run the interactive initializer after the bootstrap installer completes:
 
@@ -143,7 +76,7 @@ If `CLOUDFLARE_TUNNEL_TOKEN` is set and `cloudflared` exists on the host, the in
 
 The Cloudflare Tunnel daemon runs as `minder`, not root.
 
-## Step 3: Create An Agent
+### Step 3: Create An Agent
 
 Create an agent as `minder`:
 
@@ -171,7 +104,7 @@ During creation, Agentyard starts `hermes setup` as the `<agent-name>` user. Use
 
 Agentyard installs Hermes Agent with the upstream installer's setup wizard disabled, then runs one explicit `hermes setup` afterward. It also pre-marks Hermes WebUI onboarding as complete because Hermes Agent setup is handled by that terminal wizard.
 
-## Step 4: Configure Cloudflare SSO
+### Step 4: Configure Cloudflare SSO
 
 Cloudflare Access SSO is required because WebUI is exposed through Cloudflare, not directly through public server ports.
 
@@ -194,7 +127,7 @@ Authorized redirect URI:      https://<your-team-name>.cloudflareaccess.com/cdn-
 
 Enable PKCE if Cloudflare offers that option for the provider.
 
-## Step 5: Configure Cloudflare Route
+### Step 5: Configure Cloudflare Route
 
 After agent creation, the script prints the Cloudflare route to add:
 
@@ -239,7 +172,7 @@ Create one Access application per agent hostname. Avoid broad `Everyone`, domain
 
 Each WebUI listens only on `127.0.0.1`, so the host does not expose WebUI ports directly to the public network. Cloudflare Tunnel is outbound-only, so no public port opening is required.
 
-## Step 6: Open WebUI
+### Step 6: Open WebUI
 
 Open:
 
@@ -248,6 +181,76 @@ https://<agent-name>.example.com
 ```
 
 Cloudflare Access authenticates the browser. Hermes WebUI then talks to the Hermes runtime owned by the `<agent-name>` Linux user.
+
+## Architecture
+
+The runtime model is intentionally simple:
+
+- `minder` is the non-root control-plane user.
+- each agent is its own non-root Linux user named after the agent.
+- Cloudflare Tunnel runs as the non-root `minder` user.
+- [Hermes Agent](https://hermes-agent.nousresearch.com/), [Hermes WebUI](https://github.com/nesquena/hermes-webui), credentials, memory, cron jobs, and workspace files live inside each agent user's home directory.
+- Agentyard does not run agents as Docker containers. Docker Engine and rootless Docker extras are installed so each agent can run its own user-scoped Docker daemon for Hermes features that need a local Docker backend.
+
+```text
+Browser
+  -> https://<agent-name>.example.com
+  -> Cloudflare Access
+  -> Cloudflare Tunnel owned by minder
+  -> http://127.0.0.1:8787
+  -> agentyard-webui.service owned by <agent-name>
+```
+
+Users and services:
+
+```text
+minder
+  agentyard-cloudflared.service
+  ~/agentyard
+  ~/agentyard/agents/<agent-name>/agent.env
+
+<agent-name>
+  docker.service
+  agentyard-webui.service
+  hermes-gateway.service
+  ~/.hermes
+  ~/hermes-webui
+  ~/workspace
+```
+
+Root is only needed for one-time control-plane bootstrap and narrow OS account operations through `/usr/local/sbin/agentyard-user`. No long-running daemon runs as root.
+
+## Proxmox LXC
+
+If you run Agentyard inside an unprivileged Proxmox LXC and want Hermes Docker-backed tools, rootless Docker needs nested user namespaces. Enable nesting for the CT and make enough subordinate UID/GID space available on the Proxmox host.
+
+On the Proxmox host, inspect the CT config:
+
+```bash
+pct config <CTID>
+```
+
+The CT needs settings like:
+
+```text
+features: nesting=1
+lxc.idmap: u 0 100000 165536
+lxc.idmap: g 0 100000 165536
+lxc.mount.entry: /dev/net/tun dev/net/tun none bind,create=file
+```
+
+The Proxmox host also needs matching subordinate ranges for root. A conservative way is to keep the default range and append the extra range:
+
+```bash
+cp -a /etc/subuid /etc/subuid.bak.$(date +%Y%m%d-%H%M%S)
+cp -a /etc/subgid /etc/subgid.bak.$(date +%Y%m%d-%H%M%S)
+echo 'root:165536:100000' >> /etc/subuid
+echo 'root:165536:100000' >> /etc/subgid
+```
+
+This allows the CT mapping `100000-265535` without replacing the existing `root:100000:65536` entry. Agentyard allocates each new agent's `/etc/subuid` and `/etc/subgid` ranges from the ID space available inside the CT. The example above is enough for one rootless-Docker agent. For multiple agents, increase the CT idmap and host subordinate range by roughly `65536` IDs per additional agent.
+
+Security tradeoff: this gives the unprivileged CT a larger host UID/GID mapping range and enables more kernel namespace features. It does not make CT root equal host root, and Agentyard still avoids the root Docker socket, but it expands the kernel/container attack surface. For the strongest isolation boundary, run Agentyard in a VM instead of LXC.
 
 ## Operations
 
