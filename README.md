@@ -14,7 +14,7 @@ The runtime model is intentionally simple:
 
 ```text
 Browser
-  -> https://atlas.example.com
+  -> https://<agent-name>.example.com
   -> Cloudflare Access
   -> Cloudflare Tunnel owned by minder
   -> http://127.0.0.1:8787
@@ -43,10 +43,8 @@ Root is only needed for one-time control-plane bootstrap and narrow OS account o
 
 You need:
 
-- a Linux host with `systemd`
+- an Ubuntu or Debian host with `systemd`
 - root or sudo access for the initial bootstrap only
-- a supported package manager if required packages are missing: `apt-get`, `dnf`, `yum`, `zypper`, `pacman`, or `apk`
-- `cloudflared` installed if Agentyard should manage the tunnel service
 - a Cloudflare account with a Tunnel and Access available
 - a Cloudflare Access SSO identity provider, for example Google, GitHub, Microsoft Entra ID, Okta, or another supported provider
 - a domain routed through Cloudflare, for example `example.com`
@@ -64,7 +62,7 @@ sudo ./agentyard install-control-plane
 
 This creates:
 
-- required system packages when missing: `git`, `curl`, `python3`, `python3-venv` or equivalent, and `sudo`
+- required system packages and tools when missing: `git`, `curl`, `python3`, `python3-venv`, `sudo`, `tailscaled`, and `cloudflared`
 - Linux user `minder`
 - system group `agentyard-agents`
 - root-owned helper `/usr/local/sbin/agentyard-user`
@@ -167,7 +165,7 @@ Enable PKCE if Cloudflare offers that option for the provider.
 After agent creation, the script prints the Cloudflare route to add:
 
 ```text
-Hostname: atlas.example.com
+Hostname: <agent-name>.example.com
 Service:  http://127.0.0.1:8787
 ```
 
@@ -178,7 +176,7 @@ Create or update a remotely-managed Cloudflare Tunnel route:
 3. If creating a tunnel, choose **Cloudflared**, name the tunnel, save it, and copy the tunnel token into Agentyard when `./agentyard install` asks for `CLOUDFLARE_TUNNEL_TOKEN`.
 4. In the tunnel, go to **Published applications**.
 5. Add a public hostname for the agent.
-6. Set the hostname to `atlas.example.com`.
+6. Set the hostname to `<agent-name>.example.com`.
 7. Set **Service** type to `HTTP` and URL to `127.0.0.1:8787`.
 8. Save the route.
 
@@ -188,7 +186,7 @@ Then protect the hostname with a Cloudflare Access application that uses your co
 2. Select **Add an application**.
 3. Select **Self-hosted**.
 4. Enter a name such as `atlas`.
-5. Select **Add public hostname** and set the domain to `atlas.example.com`.
+5. Select **Add public hostname** and set the domain to `<agent-name>.example.com`.
 6. Add an Allow policy for the assigned user or group.
 7. Select the identity provider you configured in Step 4.
 8. Enable **Instant Auth** if this application should always use one provider directly.
@@ -197,7 +195,7 @@ Then protect the hostname with a Cloudflare Access application that uses your co
 Recommended Access policy:
 
 ```text
-Application: atlas.example.com
+Application: <agent-name>.example.com
 Policy: Allow
 Include: Emails
 Email: assigned-user@example.com
@@ -212,7 +210,7 @@ Each WebUI listens only on `127.0.0.1`, so the host does not expose WebUI ports 
 Open:
 
 ```text
-https://atlas.example.com
+https://<agent-name>.example.com
 ```
 
 Cloudflare Access authenticates the browser. Hermes WebUI then talks to the Hermes runtime owned by the `atlas` Linux user.

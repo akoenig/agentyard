@@ -8,7 +8,7 @@ control_user=${AGENTYARD_CONTROL_USER:-minder}
 agent_group=${AGENTYARD_AGENT_GROUP:-agentyard-agents}
 helper_path=/usr/local/sbin/agentyard-user
 sudoers_path=/etc/sudoers.d/agentyard
-required_commands="git curl python3 sudo"
+required_commands="git curl python3 sudo tailscaled cloudflared"
 
 install_packages() {
   missing=""
@@ -27,18 +27,29 @@ install_packages() {
   printf 'Installing required packages:%s\n' "$missing"
   if command -v apt-get >/dev/null 2>&1; then
     apt-get update
-    apt-get install -y git curl python3 python3-venv sudo
-  elif command -v dnf >/dev/null 2>&1; then
-    dnf install -y git curl python3 python3-pip sudo
-  elif command -v yum >/dev/null 2>&1; then
-    yum install -y git curl python3 python3-pip sudo
-  elif command -v zypper >/dev/null 2>&1; then
-    zypper --non-interactive install git curl python3 python3-venv sudo
-  elif command -v pacman >/dev/null 2>&1; then
-    pacman -Sy --noconfirm git curl python sudo
-  elif command -v apk >/dev/null 2>&1; then
-    apk add git curl python3 py3-virtualenv sudo
+    apt-get install -y ca-certificates curl git python3 python3-venv sudo
+
+    if ! command -v tailscaled >/dev/null 2>&1; then
+      curl -fsSL https://tailscale.com/install.sh | sh
+      apt-get install -y tailscale
+    fi
+
+    if ! command -v cloudflared >/dev/null 2>&1; then
+      arch=$(dpkg --print-architecture)
+      case "$arch" in
+        amd64) cloudflared_deb=cloudflared-linux-amd64.deb ;;
+        arm64) cloudflared_deb=cloudflared-linux-arm64.deb ;;
+        armhf) cloudflared_deb=cloudflared-linux-arm.deb ;;
+        i386) cloudflared_deb=cloudflared-linux-386.deb ;;
+        *) printf 'Unsupported architecture for cloudflared: %s\n' "$arch" >&2; exit 1 ;;
+      esac
+      tmp_deb="/tmp/$cloudflared_deb"
+      curl -fsSL "https://github.com/cloudflare/cloudflared/releases/latest/download/$cloudflared_deb" -o "$tmp_deb"
+      apt-get install -y "$tmp_deb"
+      rm -f "$tmp_deb"
+    fi
   else
+    printf 'Agentyard currently supports Ubuntu/Debian hosts with apt-get.\n' >&2
     printf 'Unsupported package manager. Install these packages manually:%s\n' "$missing" >&2
     exit 1
   fi

@@ -33,7 +33,7 @@ prompt_if_empty() {
   fi
 }
 
-prompt_if_empty AGENT_BASE_DOMAIN 'Base domain for agent hostnames (example: agents.example.com)'
+prompt_if_empty AGENT_BASE_DOMAIN 'Base domain for agent hostnames (example: example.com)'
 prompt_if_empty AGENT_BASE_PORT 'First local WebUI port (example: 8787)'
 
 if [ -z "${CLOUDFLARE_TUNNEL_TOKEN:-}" ]; then

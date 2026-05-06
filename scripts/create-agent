@@ -33,7 +33,7 @@ if [ -f .env ]; then
   set +a
 fi
 
-agent_base_domain=${AGENT_BASE_DOMAIN:-agents.example.com}
+agent_base_domain=${AGENT_BASE_DOMAIN:-example.com}
 base_port=${AGENT_BASE_PORT:-8787}
 webui_repo=${HERMES_WEBUI_REPO:-https://github.com/nesquena/hermes-webui.git}
 webui_ref=${HERMES_WEBUI_REF:-master}
