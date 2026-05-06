@@ -10,7 +10,36 @@ helper_path=/usr/local/sbin/agentyard-user
 cli_path=/usr/local/bin/agentyard
 cli_link_path=/usr/bin/agentyard
 sudoers_path=/etc/sudoers.d/agentyard
-required_commands="git curl python3 sudo rg ffmpeg gcc cloudflared unattended-upgrade"
+required_commands="git curl python3 sudo rg ffmpeg gcc cloudflared unattended-upgrade docker"
+
+install_docker_engine() {
+  if command -v docker >/dev/null 2>&1; then
+    systemctl enable --now docker 2>/dev/null || true
+    return 0
+  fi
+
+  if ! command -v apt-get >/dev/null 2>&1; then
+    printf 'Docker Engine auto-install currently requires Ubuntu/Debian with apt-get.\n' >&2
+    exit 1
+  fi
+
+  . /etc/os-release
+  docker_codename=${VERSION_CODENAME:-}
+  if [ -z "$docker_codename" ]; then
+    printf 'Could not determine OS codename for Docker apt repository.\n' >&2
+    exit 1
+  fi
+
+  install -m 0755 -d /etc/apt/keyrings
+  curl -fsSL "https://download.docker.com/linux/$ID/gpg" -o /etc/apt/keyrings/docker.asc
+  chmod a+r /etc/apt/keyrings/docker.asc
+
+  printf 'deb [arch=%s signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/%s %s stable\n' "$(dpkg --print-architecture)" "$ID" "$docker_codename" >/etc/apt/sources.list.d/docker.list
+
+  apt-get update
+  apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  systemctl enable --now docker
+}
 
 install_packages() {
   missing=""
@@ -24,12 +53,17 @@ install_packages() {
     missing="$missing python3-venv"
   fi
 
-  [ -n "$missing" ] || return 0
+  if [ -z "$missing" ]; then
+    install_docker_engine
+    return 0
+  fi
 
   printf 'Installing required packages:%s\n' "$missing"
   if command -v apt-get >/dev/null 2>&1; then
     apt-get update
     apt-get install -y ca-certificates curl git python3 python3-venv python3-dev sudo unattended-upgrades ripgrep ffmpeg build-essential libffi-dev
+
+    install_docker_engine
 
     if ! command -v cloudflared >/dev/null 2>&1; then
       arch=$(dpkg --print-architecture)

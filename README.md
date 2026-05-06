@@ -9,7 +9,7 @@ Agentyard makes it easy to create and operate isolated [Hermes Agent](https://he
 - Protect every agent hostname with Cloudflare Access SSO, including Google Login, GitHub Login, Microsoft Entra ID, Okta, and other supported identity providers.
 - Keep all long-running daemons non-root: Cloudflare Tunnel runs as `minder`, and each agent's WebUI and gateway run as that agent user.
 - Bootstrap a fresh Ubuntu/Debian host with one public `curl | sudo sh` installer.
-- Avoid Docker entirely while still getting repeatable bootstrap, create, update, delete, status, and list commands.
+- Use native system users and systemd for Agentyard itself while installing Docker Engine for Hermes features that need it.
 
 The runtime model is intentionally simple:
 
@@ -17,7 +17,7 @@ The runtime model is intentionally simple:
 - each agent is its own non-root Linux user named after the agent.
 - Cloudflare Tunnel runs as the non-root `minder` user.
 - [Hermes Agent](https://hermes-agent.nousresearch.com/), [Hermes WebUI](https://github.com/nesquena/hermes-webui), credentials, memory, cron jobs, and workspace files live inside each agent user's home directory.
-- no Docker is used.
+- Agentyard does not run agents as Docker containers; Docker Engine is installed for Hermes features that need a local Docker backend.
 
 ## Architecture
 
@@ -79,7 +79,7 @@ sudo ./agentyard install-control-plane
 
 This creates:
 
-- required system packages and tools when missing: `git`, `curl`, `python3`, `python3-venv`, `python3-dev`, `sudo`, `unattended-upgrades`, `ripgrep`, `ffmpeg`, `build-essential`, `libffi-dev`, and `cloudflared`
+- required system packages and tools when missing: `git`, `curl`, `python3`, `python3-venv`, `python3-dev`, `sudo`, `unattended-upgrades`, `ripgrep`, `ffmpeg`, `build-essential`, `libffi-dev`, Docker Engine, and `cloudflared`
 - Linux user `minder`
 - system group `agentyard-agents`
 - root-owned helper `/usr/local/sbin/agentyard-user`
