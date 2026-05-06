@@ -25,7 +25,7 @@ helper=${AGENTYARD_HELPER:-/usr/local/sbin/agentyard-user}
 repo_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$repo_dir"
 
-[ -x "$helper" ] || { printf 'Missing helper %s. Run sudo scripts/install-control-plane first.\n' "$helper" >&2; exit 1; }
+[ -x "$helper" ] || { printf 'Missing helper %s. Run sudo ./agentyard install-control-plane first.\n' "$helper" >&2; exit 1; }
 
 if [ -f .env ]; then
   set -a

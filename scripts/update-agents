@@ -1,7 +1,15 @@
 #!/usr/bin/env sh
 set -eu
 
-agent_ref=${1:-}
+usage() {
+  printf 'Usage: %s\n' "$0" >&2
+  exit 1
+}
+
+[ "$#" -eq 0 ] || usage
+
+repo_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+cd "$repo_dir"
 
 if [ ! -d agents ]; then
   exit 0
@@ -10,15 +18,9 @@ fi
 updated=0
 for agent_dir in agents/*; do
   [ -d "$agent_dir" ] || exit 0
+  [ -f "$agent_dir/agent.env" ] || continue
   agent=$(basename "$agent_dir")
-  case "$agent" in
-    _*) continue ;;
-  esac
-  if [ -n "$agent_ref" ]; then
-    scripts/update-agent "$agent" "$agent_ref"
-  else
-    scripts/update-agent "$agent"
-  fi
+  "$repo_dir/scripts/update-agent" "$agent"
   updated=$((updated + 1))
 done
 
