@@ -72,8 +72,10 @@ loginctl enable-linger "$control_user"
 
 printf 'Control-plane user is ready: %s\n' "$control_user"
 printf 'Helper installed: %s\n' "$helper_path"
-printf '\nNext steps:\n'
-printf '  sudo -iu %s\n' "$control_user"
-printf '  git clone <this-repo> ~/agentyard\n'
-printf '  cd ~/agentyard\n'
-printf '  scripts/install\n'
+if [ "${AGENTYARD_SUPPRESS_NEXT_STEPS:-0}" != "1" ]; then
+  printf '\nNext steps:\n'
+  printf '  sudo -iu %s\n' "$control_user"
+  printf '  git clone <this-repo> ~/agentyard\n'
+  printf '  cd ~/agentyard\n'
+  printf '  ./agentyard install\n'
+fi

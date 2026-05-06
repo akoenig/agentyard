@@ -2,6 +2,15 @@
 
 Agentyard makes it easy to create and operate isolated [Hermes Agent](https://hermes-agent.nousresearch.com/) + [Hermes WebUI](https://github.com/nesquena/hermes-webui) agents on one Linux host.
 
+## Features
+
+- Create agents as isolated non-root Linux users with their own Hermes Agent, Hermes WebUI, credentials, memory, cron jobs, and workspace.
+- Run WebUI without opening public inbound server ports; Cloudflare Tunnel connects outbound to Cloudflare and forwards traffic to localhost.
+- Protect every agent hostname with Cloudflare Access SSO, including Google Login, GitHub Login, Microsoft Entra ID, Okta, and other supported identity providers.
+- Keep all long-running daemons non-root: Cloudflare Tunnel runs as `minder`, and each agent's WebUI and gateway run as that agent user.
+- Bootstrap a fresh Ubuntu/Debian host with one public `curl | sudo sh` installer.
+- Avoid Docker entirely while still getting repeatable install, create, update, delete, status, and list commands.
+
 The runtime model is intentionally simple:
 
 - `minder` is the non-root control-plane user.

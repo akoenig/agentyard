@@ -33,7 +33,7 @@ fi
 
 chown -R "$control_user:$control_user" "$install_dir"
 
-"$install_dir/agentyard" install-control-plane
+AGENTYARD_SUPPRESS_NEXT_STEPS=1 "$install_dir/agentyard" install-control-plane
 chown -R "$control_user:$control_user" "$install_dir"
 
 printf '\nAgentyard control plane bootstrap complete.\n'

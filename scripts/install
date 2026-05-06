@@ -48,7 +48,6 @@ fi
 mkdir -p agents "$HOME/.config/systemd/user" "$HOME/.cloudflared"
 
 [ -x "$helper" ] || { printf 'Missing helper %s. Run sudo scripts/install-control-plane first.\n' "$helper" >&2; exit 1; }
-sudo "$helper" enable-linger "$control_user"
 
 if [ -n "${CLOUDFLARE_TUNNEL_TOKEN:-}" ]; then
   if command -v cloudflared >/dev/null 2>&1; then
