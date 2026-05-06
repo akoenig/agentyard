@@ -76,7 +76,7 @@ HERMES_PROFILE=$profile_dir
 EOF
 
 printf 'Installing Hermes Agent and WebUI as %s.\n' "$agent"
-sudo "$helper" run-as "$agent" sh -lc "set -eu; PATH=\"\$HOME/.local/bin:\$PATH\"; if ! command -v hermes >/dev/null 2>&1; then curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash; fi; mkdir -p \"$workspace_dir\" \"$unit_dir\"; if [ ! -d \"$webui_dir/.git\" ]; then git clone \"$webui_repo\" \"$webui_dir\"; fi; git -C \"$webui_dir\" fetch origin; git -C \"$webui_dir\" checkout \"$webui_ref\"; python3 -m venv \"$webui_dir/.venv\"; \"$webui_dir/.venv/bin/python\" -m pip install --upgrade pip >/dev/null; \"$webui_dir/.venv/bin/python\" -m pip install -r \"$webui_dir/requirements.txt\""
+sudo "$helper" run-as "$agent" sh -lc "set -eu; cd \"\$HOME\"; PATH=\"\$HOME/.local/bin:\$PATH\"; if ! command -v hermes >/dev/null 2>&1; then curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash; fi; mkdir -p \"$workspace_dir\" \"$unit_dir\"; if [ ! -d \"$webui_dir/.git\" ]; then git clone \"$webui_repo\" \"$webui_dir\"; fi; git -C \"$webui_dir\" fetch origin; git -C \"$webui_dir\" checkout \"$webui_ref\"; python3 -m venv \"$webui_dir/.venv\"; \"$webui_dir/.venv/bin/python\" -m pip install --upgrade pip >/dev/null; \"$webui_dir/.venv/bin/python\" -m pip install -r \"$webui_dir/requirements.txt\""
 
 sudo "$helper" run-as "$agent" sh -lc "cat >\"$profile_dir/config.yaml\" <<'EOF'
 model:
