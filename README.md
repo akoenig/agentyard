@@ -134,7 +134,9 @@ terminal:
   cwd: /home/<agent-name>/workspace
 ```
 
-During creation, Agentyard starts `hermes setup` as the `<agent-name>` user. Use the Hermes Agent wizard to choose and authenticate the provider and messaging platforms for that agent. If the wizard installs the Hermes gateway service, Agentyard uses it. If it does not, Agentyard runs `hermes gateway install` and starts `hermes-gateway.service` for the agent.
+During creation, Agentyard starts `hermes setup` as the `<agent-name>` user. Use the Hermes Agent wizard to choose and authenticate the provider and messaging platforms for that agent. If Hermes asks to install or start the gateway service, choose no/skip. Agentyard checks immediately afterward and runs `hermes gateway install` and `hermes gateway start` only when needed.
+
+Agentyard installs Hermes Agent with the upstream installer's setup wizard disabled, then runs one explicit `hermes setup` afterward. It also pre-marks Hermes WebUI onboarding as complete because Hermes Agent setup is handled by that terminal wizard.
 
 ## Step 4: Configure Cloudflare SSO
 

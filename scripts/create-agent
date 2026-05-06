@@ -61,6 +61,7 @@ agent_home=$(getent passwd "$agent" | cut -d: -f6)
 profile_dir="$agent_home/.hermes"
 webui_dir="$agent_home/hermes-webui"
 workspace_dir="$agent_home/workspace"
+webui_state_dir="$agent_home/webui-state"
 unit_dir="$agent_home/.config/systemd/user"
 
 mkdir -p "$agent_dir"
@@ -76,7 +77,7 @@ HERMES_PROFILE=$profile_dir
 EOF
 
 printf 'Installing Hermes Agent and WebUI as %s.\n' "$agent"
-sudo "$helper" run-as "$agent" sh -lc "set -eu; cd \"\$HOME\"; PATH=\"\$HOME/.local/bin:\$PATH\"; if ! command -v hermes >/dev/null 2>&1; then curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash; fi; mkdir -p \"$workspace_dir\" \"$unit_dir\"; if [ ! -d \"$webui_dir/.git\" ]; then git clone \"$webui_repo\" \"$webui_dir\"; fi; git -C \"$webui_dir\" fetch origin; git -C \"$webui_dir\" checkout \"$webui_ref\"; python3 -m venv \"$webui_dir/.venv\"; \"$webui_dir/.venv/bin/python\" -m pip install --upgrade pip >/dev/null; \"$webui_dir/.venv/bin/python\" -m pip install -r \"$webui_dir/requirements.txt\""
+sudo "$helper" run-as "$agent" sh -lc "set -eu; cd \"\$HOME\"; PATH=\"\$HOME/.local/bin:\$PATH\"; if [ ! -x \"\$HOME/.local/bin/hermes\" ]; then curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash -s -- --skip-setup --hermes-home \"$profile_dir\"; fi; mkdir -p \"$workspace_dir\" \"$webui_state_dir\" \"$unit_dir\"; if [ ! -d \"$webui_dir/.git\" ]; then git clone \"$webui_repo\" \"$webui_dir\"; fi; git -C \"$webui_dir\" fetch origin; git -C \"$webui_dir\" checkout \"$webui_ref\"; python3 -m venv \"$webui_dir/.venv\"; \"$webui_dir/.venv/bin/python\" -m pip install --upgrade pip >/dev/null; \"$webui_dir/.venv/bin/python\" -m pip install -r \"$webui_dir/requirements.txt\"; printf '{\"onboarding_completed\":true}\n' >\"$webui_state_dir/settings.json\""
 
 sudo "$helper" run-as "$agent" sh -lc "cat >\"$profile_dir/config.yaml\" <<'EOF'
 terminal:
@@ -95,13 +96,13 @@ Type=simple
 WorkingDirectory=$webui_dir
 Environment=PATH=$agent_home/.local/bin:/usr/local/bin:/usr/bin:/bin
 Environment=HERMES_HOME=$profile_dir
-Environment=HERMES_WEBUI_STATE_DIR=$agent_home/webui-state
+Environment=HERMES_WEBUI_STATE_DIR=$webui_state_dir
 Environment=HERMES_WEBUI_DEFAULT_WORKSPACE=$workspace_dir
 Environment=HERMES_WEBUI_HOST=127.0.0.1
 Environment=HERMES_WEBUI_PORT=$port
 Environment=HERMES_WEBUI_SKIP_ONBOARDING=1
 Environment=HERMES_EXEC_ASK=1
-ExecStart=$webui_dir/.venv/bin/python $webui_dir/bootstrap.py --no-browser --foreground --host 127.0.0.1 $port
+ExecStart=$webui_dir/.venv/bin/python $webui_dir/bootstrap.py --skip-agent-install --no-browser --foreground --host 127.0.0.1 $port
 Restart=on-failure
 RestartSec=5
 
@@ -113,6 +114,7 @@ sudo "$helper" run-as "$agent" sh -lc "mkdir -p \"$unit_dir\"; cp /tmp/agentyard
 rm -f "/tmp/agentyard-webui-$agent.service"
 
 printf 'Starting Hermes setup as %s. Use the wizard to choose and authenticate the provider for this agent.\n' "$agent"
+printf 'If Hermes asks to install or start the gateway service, choose no/skip; Agentyard checks and starts it afterward.\n'
 sudo "$helper" run-as "$agent" sh -lc "PATH=\"\$HOME/.local/bin:\$PATH\" HERMES_HOME=\"$profile_dir\" hermes setup"
 
 printf 'Ensuring Hermes gateway service is installed and running as %s.\n' "$agent"
