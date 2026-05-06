@@ -22,7 +22,9 @@ agent_env="agents/$agent/agent.env"
 printf 'Updating Hermes Agent and WebUI for %s.\n' "$agent"
 sudo "$helper" run-as "$SYSTEM_USER" sh -lc "set -eu; PATH=\"\$HOME/.local/bin:\$PATH\"; hermes update || true; git -C \"$WEBUI_DIR\" pull --ff-only; python3 -m venv \"$WEBUI_DIR/.venv\"; \"$WEBUI_DIR/.venv/bin/python\" -m pip install --upgrade pip >/dev/null; \"$WEBUI_DIR/.venv/bin/python\" -m pip install -r \"$WEBUI_DIR/requirements.txt\""
 sudo "$helper" enable-linger "$SYSTEM_USER"
-sudo "$helper" run-as "$SYSTEM_USER" sh -lc "set -eu; PATH=\"\$HOME/.local/bin:\$PATH\"; export HERMES_HOME=\"$HERMES_PROFILE\"; systemctl --user daemon-reload; if ! systemctl --user cat hermes-gateway.service >/dev/null 2>&1; then hermes gateway install; systemctl --user daemon-reload; fi; systemctl --user enable hermes-gateway.service >/dev/null 2>&1 || true; hermes gateway restart || hermes gateway start"
+system_uid=$(id -u "$SYSTEM_USER")
+docker_host="unix:///run/user/$system_uid/docker.sock"
+sudo "$helper" run-as "$SYSTEM_USER" sh -lc "set -eu; PATH=\"\$HOME/bin:\$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin:\$PATH\"; export HERMES_HOME=\"$HERMES_PROFILE\" DOCKER_HOST=\"$docker_host\"; systemctl --user import-environment DOCKER_HOST; if command -v dockerd-rootless-setuptool.sh >/dev/null 2>&1; then if ! systemctl --user cat docker.service >/dev/null 2>&1; then dockerd-rootless-setuptool.sh install; fi; systemctl --user enable --now docker.service; fi; systemctl --user daemon-reload; if ! systemctl --user cat hermes-gateway.service >/dev/null 2>&1; then hermes gateway install; fi; mkdir -p \"\$HOME/.config/systemd/user/hermes-gateway.service.d\"; printf '[Service]\nEnvironment=DOCKER_HOST=%s\n' \"$docker_host\" >\"\$HOME/.config/systemd/user/hermes-gateway.service.d/agentyard-rootless-docker.conf\"; systemctl --user daemon-reload; systemctl --user enable hermes-gateway.service >/dev/null 2>&1 || true; hermes gateway restart || hermes gateway start"
 sudo "$helper" run-as "$SYSTEM_USER" systemctl --user restart agentyard-webui.service
 
 printf 'Updated agent %s.\n' "$agent"

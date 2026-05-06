@@ -17,7 +17,7 @@ The runtime model is intentionally simple:
 - each agent is its own non-root Linux user named after the agent.
 - Cloudflare Tunnel runs as the non-root `minder` user.
 - [Hermes Agent](https://hermes-agent.nousresearch.com/), [Hermes WebUI](https://github.com/nesquena/hermes-webui), credentials, memory, cron jobs, and workspace files live inside each agent user's home directory.
-- Agentyard does not run agents as Docker containers; Docker Engine is installed for Hermes features that need a local Docker backend.
+- Agentyard does not run agents as Docker containers. Docker Engine and rootless Docker extras are installed so each agent can run its own user-scoped Docker daemon for Hermes features that need a local Docker backend.
 
 ## Architecture
 
@@ -119,9 +119,10 @@ Create an agent as `minder`:
 agentyard create <agent-name>
 ```
 
-This creates Linux user `<agent-name>`, locks its password, enables lingering, installs Hermes Agent and Hermes WebUI into that user's home directory, and ensures these user services exist:
+This creates Linux user `<agent-name>`, locks its password, enables lingering, installs Hermes Agent and Hermes WebUI into that user's home directory, sets up rootless Docker for that user, and ensures these user services exist:
 
 ```text
+~<agent-name>/.config/systemd/user/docker.service
 ~<agent-name>/.config/systemd/user/agentyard-webui.service
 ~<agent-name>/.config/systemd/user/hermes-gateway.service
 ```
@@ -275,6 +276,8 @@ Agent users are service accounts:
 
 - password is locked
 - no sudo privileges
+- not a member of the root Docker daemon's `docker` group
+- gets a per-user rootless Docker daemon at `unix:///run/user/<uid>/docker.sock` for Docker-backed Hermes tools
 - no SSH keys are created
 - services run with `systemd --user`
 - secrets remain inside that user's home directory

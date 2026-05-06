@@ -13,7 +13,7 @@ sudoers_path=/etc/sudoers.d/agentyard
 required_commands="git curl python3 sudo rg ffmpeg gcc cloudflared unattended-upgrade docker"
 
 install_docker_engine() {
-  if command -v docker >/dev/null 2>&1; then
+  if command -v docker >/dev/null 2>&1 && command -v dockerd-rootless-setuptool.sh >/dev/null 2>&1; then
     systemctl enable --now docker 2>/dev/null || true
     return 0
   fi
@@ -37,7 +37,7 @@ install_docker_engine() {
   printf 'deb [arch=%s signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/%s %s stable\n' "$(dpkg --print-architecture)" "$ID" "$docker_codename" >/etc/apt/sources.list.d/docker.list
 
   apt-get update
-  apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin docker-ce-rootless-extras uidmap dbus-user-session
   systemctl enable --now docker
 }
 
