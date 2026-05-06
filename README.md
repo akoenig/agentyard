@@ -54,7 +54,15 @@ The server does not need to be publicly exposed. No inbound firewall ports need 
 
 ## Step 1: Bootstrap The Control Plane
 
-Clone the repository as any temporary/admin user, then run the bootstrap with root privileges:
+On a fresh host, run the public bootstrap installer:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/akoenig/agentyard/main/install.sh | sudo sh
+```
+
+This clones Agentyard into `~minder/agentyard` and runs the control-plane bootstrap.
+
+If you already cloned the repository manually, you can run the bootstrap from the clone instead:
 
 ```bash
 sudo ./agentyard install-control-plane
@@ -69,11 +77,10 @@ This creates:
 - sudoers rule allowing `minder` to run only that helper without a password
 - lingering for `minder`, so its user services can run after logout
 
-Then switch to `minder` and put the repo in its home directory:
+Then switch to `minder`:
 
 ```bash
 sudo -iu minder
-git clone <this-repo-url> ~/agentyard
 cd ~/agentyard
 ```
 
