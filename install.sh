@@ -24,13 +24,17 @@ if ! id "$control_user" >/dev/null 2>&1; then
   passwd -l "$control_user" >/dev/null 2>&1 || true
 fi
 
-if [ -d "$install_dir/.git" ]; then
-  chown -R "$control_user:$control_user" "$install_dir"
-  runuser -u "$control_user" -- git -C "$install_dir" pull --ff-only
-else
-  rm -rf "$install_dir"
-  git clone "$repo_url" "$install_dir"
+tmp_dir=$(mktemp -d)
+git clone "$repo_url" "$tmp_dir/agentyard"
+
+if [ -f "$install_dir/.env" ]; then
+  cp "$install_dir/.env" "$tmp_dir/agentyard/.env"
 fi
+
+rm -rf "$install_dir"
+mkdir -p "$(dirname "$install_dir")"
+mv "$tmp_dir/agentyard" "$install_dir"
+rm -rf "$tmp_dir"
 
 chown -R "$control_user:$control_user" "$install_dir"
 
