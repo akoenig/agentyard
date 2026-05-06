@@ -39,6 +39,13 @@ case "$action" in
   delete)
     loginctl disable-linger "$agent" 2>/dev/null || true
     if id "$agent" >/dev/null 2>&1; then
+      loginctl terminate-user "$agent" 2>/dev/null || true
+      sleep 1
+      if command -v pkill >/dev/null 2>&1; then
+        pkill -TERM -u "$agent" 2>/dev/null || true
+        sleep 2
+        pkill -KILL -u "$agent" 2>/dev/null || true
+      fi
       userdel --remove "$agent"
     fi
     ;;
