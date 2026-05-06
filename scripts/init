@@ -46,23 +46,33 @@ set_env_value() {
   chmod go-rwx .env
 }
 
+is_cloudflare_tunnel_token() {
+  case "$1" in
+    *.*.*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 prompt_if_empty AGENT_BASE_DOMAIN 'Base domain for agent hostnames (example: example.com)'
 prompt_if_empty AGENT_BASE_PORT 'First local WebUI port (example: 8787)'
+
+if [ -n "${CLOUDFLARE_TUNNEL_TOKEN:-}" ] && ! is_cloudflare_tunnel_token "$CLOUDFLARE_TUNNEL_TOKEN"; then
+  printf 'Ignoring invalid CLOUDFLARE_TUNNEL_TOKEN value in .env. It should be the JWT tunnel token, not a domain.\n'
+  set_env_value CLOUDFLARE_TUNNEL_TOKEN ""
+  CLOUDFLARE_TUNNEL_TOKEN=
+fi
 
 if [ -z "${CLOUDFLARE_TUNNEL_TOKEN:-}" ]; then
   printf 'Cloudflare Tunnel token (JWT from Cloudflare, not your domain; leave empty to configure manually): '
   IFS= read -r tunnel_token
   if [ -n "$tunnel_token" ]; then
-    case "$tunnel_token" in
-      *.*.*)
+    if is_cloudflare_tunnel_token "$tunnel_token"; then
         set_env_value CLOUDFLARE_TUNNEL_TOKEN "$tunnel_token"
         CLOUDFLARE_TUNNEL_TOKEN=$tunnel_token
-        ;;
-      *)
+    else
         printf 'That does not look like a Cloudflare Tunnel token. Skipping cloudflared service setup.\n'
         CLOUDFLARE_TUNNEL_TOKEN=
-        ;;
-    esac
+    fi
   fi
 fi
 
@@ -87,7 +97,8 @@ RestartSec=5
 WantedBy=default.target
 EOF
     systemctl --user daemon-reload
-    systemctl --user enable --now agentyard-cloudflared.service
+    systemctl --user enable agentyard-cloudflared.service
+    systemctl --user start --no-block agentyard-cloudflared.service
   else
     printf 'cloudflared is not installed. Install it, then rerun agentyard init to create the tunnel service.\n'
   fi
