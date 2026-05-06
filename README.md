@@ -1,13 +1,13 @@
 # Agentyard
 
-Agentyard makes it easy to create and operate isolated Hermes Agent + Hermes WebUI agents on one Linux host.
+Agentyard makes it easy to create and operate isolated [Hermes Agent](https://hermes-agent.nousresearch.com/) + [Hermes WebUI](https://github.com/nesquena/hermes-webui) agents on one Linux host.
 
 The runtime model is intentionally simple:
 
 - `minder` is the non-root control-plane user.
 - each agent is its own non-root Linux user, for example `atlas` or `coder`.
 - Cloudflare Tunnel runs as the non-root `minder` user.
-- Hermes Agent, Hermes WebUI, credentials, memory, cron jobs, and workspace files live inside each agent user's home directory.
+- [Hermes Agent](https://hermes-agent.nousresearch.com/), [Hermes WebUI](https://github.com/nesquena/hermes-webui), credentials, memory, cron jobs, and workspace files live inside each agent user's home directory.
 - no Docker is used.
 
 ## Architecture
@@ -145,12 +145,13 @@ Cloudflare Access SSO is required because WebUI is exposed through Cloudflare, n
 
 Configure an identity provider in Cloudflare Zero Trust:
 
-1. Open the Cloudflare Zero Trust dashboard at `https://one.dash.cloudflare.com/`.
-2. Select the Cloudflare account that owns the tunnel and Access applications.
-3. Go to `Settings` -> `Authentication` -> `Login methods`.
-4. Add an identity provider such as Google, GitHub, Microsoft Entra ID, Okta, or another provider your organization uses.
-5. Complete the provider-specific OAuth/SAML setup and save it.
-6. Use Cloudflare's provider test action to confirm SSO works before exposing an agent hostname.
+1. Open the Cloudflare dashboard at `https://dash.cloudflare.com/`.
+2. Select **Zero Trust** for the account that owns the tunnel and Access applications.
+3. Go to **Integrations** -> **Identity providers**.
+4. Select **Add new identity provider**.
+5. Choose Google, GitHub, Microsoft Entra ID, Okta, or another provider your organization uses.
+6. Complete the provider-specific OAuth/SAML setup and save it.
+7. Use the provider **Test** action to confirm SSO works before exposing an agent hostname.
 
 For Google SSO, create a Google OAuth app with application type `Web application`, then use the Cloudflare Access team domain values:
 
@@ -170,7 +171,28 @@ Hostname: atlas.example.com
 Service:  http://127.0.0.1:8787
 ```
 
-Add that public hostname to your Cloudflare Tunnel. Then protect the hostname with a Cloudflare Access application that uses your configured SSO provider.
+Create or update a remotely-managed Cloudflare Tunnel route:
+
+1. In Cloudflare Zero Trust, go to **Networks** -> **Connectors** -> **Cloudflare Tunnels**.
+2. Select your tunnel, or select **Create a tunnel** if you do not have one yet.
+3. If creating a tunnel, choose **Cloudflared**, name the tunnel, save it, and copy the tunnel token into Agentyard when `./agentyard install` asks for `CLOUDFLARE_TUNNEL_TOKEN`.
+4. In the tunnel, go to **Published applications**.
+5. Add a public hostname for the agent.
+6. Set the hostname to `atlas.example.com`.
+7. Set **Service** type to `HTTP` and URL to `127.0.0.1:8787`.
+8. Save the route.
+
+Then protect the hostname with a Cloudflare Access application that uses your configured SSO provider:
+
+1. In Cloudflare Zero Trust, go to **Access controls** -> **Applications**.
+2. Select **Add an application**.
+3. Select **Self-hosted**.
+4. Enter a name such as `atlas`.
+5. Select **Add public hostname** and set the domain to `atlas.example.com`.
+6. Add an Allow policy for the assigned user or group.
+7. Select the identity provider you configured in Step 4.
+8. Enable **Instant Auth** if this application should always use one provider directly.
+9. Save the application.
 
 Recommended Access policy:
 
@@ -289,11 +311,3 @@ Agent users are service accounts:
 - secrets remain inside that user's home directory
 
 The `minder` user is also non-root. It can only run the root-owned Agentyard helper through sudo. That helper creates/deletes agent users, enables lingering, and runs commands as agent users.
-
-## Security Notes
-
-- Do not run Agentyard daemons as root.
-- Do not put Cloudflare credentials in agent user accounts.
-- Do not put Hermes/OpenAI/Telegram credentials in the `minder` account.
-- Use Cloudflare Access as the public browser authentication layer.
-- Hermes profiles and Linux users isolate state and files, but agents still have full access to their own user account.
