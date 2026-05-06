@@ -8,7 +8,7 @@ control_user=${AGENTYARD_CONTROL_USER:-minder}
 agent_group=${AGENTYARD_AGENT_GROUP:-agentyard-agents}
 helper_path=/usr/local/sbin/agentyard-user
 sudoers_path=/etc/sudoers.d/agentyard
-required_commands="git curl python3 sudo cloudflared unattended-upgrade"
+required_commands="git curl python3 sudo rg ffmpeg gcc cloudflared unattended-upgrade"
 
 install_packages() {
   missing=""
@@ -27,7 +27,7 @@ install_packages() {
   printf 'Installing required packages:%s\n' "$missing"
   if command -v apt-get >/dev/null 2>&1; then
     apt-get update
-    apt-get install -y ca-certificates curl git python3 python3-venv sudo unattended-upgrades
+    apt-get install -y ca-certificates curl git python3 python3-venv python3-dev sudo unattended-upgrades ripgrep ffmpeg build-essential libffi-dev
 
     if ! command -v cloudflared >/dev/null 2>&1; then
       arch=$(dpkg --print-architecture)

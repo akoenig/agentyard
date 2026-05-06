@@ -79,7 +79,7 @@ sudo ./agentyard install-control-plane
 
 This creates:
 
-- required system packages and tools when missing: `git`, `curl`, `python3`, `python3-venv`, `sudo`, `unattended-upgrades`, and `cloudflared`
+- required system packages and tools when missing: `git`, `curl`, `python3`, `python3-venv`, `python3-dev`, `sudo`, `unattended-upgrades`, `ripgrep`, `ffmpeg`, `build-essential`, `libffi-dev`, and `cloudflared`
 - Linux user `minder`
 - system group `agentyard-agents`
 - root-owned helper `/usr/local/sbin/agentyard-user`
