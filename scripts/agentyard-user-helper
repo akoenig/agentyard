@@ -16,6 +16,27 @@ valid_agent() {
   esac
 }
 
+ensure_subid_range() {
+  user_name="$1"
+  file_path="$2"
+  if grep -q "^$user_name:" "$file_path" 2>/dev/null; then
+    return 0
+  fi
+
+  start_id=165536
+  if [ -s "$file_path" ]; then
+    last_line=$(tail -n 1 "$file_path")
+    last_start=$(printf '%s' "$last_line" | cut -d: -f2)
+    last_count=$(printf '%s' "$last_line" | cut -d: -f3)
+    case "$last_start:$last_count" in
+      *[!0-9:]* | :* | *:) start_id=165536 ;;
+      *) start_id=$((last_start + last_count)) ;;
+    esac
+  fi
+
+  printf '%s:%s:65536\n' "$user_name" "$start_id" >>"$file_path"
+}
+
 [ "$(id -u)" -eq 0 ] || { printf 'agentyard-user-helper must run as root.\n' >&2; exit 1; }
 [ "$#" -ge 2 ] || usage
 
@@ -34,6 +55,8 @@ case "$action" in
       useradd --create-home --shell /bin/bash --groups "$agent_group" "$agent"
       passwd -l "$agent" >/dev/null 2>&1 || true
     fi
+    ensure_subid_range "$agent" /etc/subuid
+    ensure_subid_range "$agent" /etc/subgid
     loginctl enable-linger "$agent"
     ;;
   delete)
