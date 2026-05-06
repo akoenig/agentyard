@@ -25,7 +25,8 @@ if ! id "$control_user" >/dev/null 2>&1; then
 fi
 
 if [ -d "$install_dir/.git" ]; then
-  git -C "$install_dir" pull --ff-only
+  chown -R "$control_user:$control_user" "$install_dir"
+  runuser -u "$control_user" -- git -C "$install_dir" pull --ff-only
 else
   rm -rf "$install_dir"
   git clone "$repo_url" "$install_dir"
