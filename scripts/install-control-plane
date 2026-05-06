@@ -103,5 +103,5 @@ if [ "${AGENTYARD_SUPPRESS_NEXT_STEPS:-0}" != "1" ]; then
   printf '\nNext steps:\n'
   printf '  sudo -iu %s\n' "$control_user"
   printf '  git clone <this-repo> ~/agentyard\n'
-  printf '  agentyard install\n'
+  printf '  agentyard init\n'
 fi

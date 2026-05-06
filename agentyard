@@ -5,11 +5,11 @@ repo_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 
 usage() {
   cat <<'EOF'
-Usage: ./agentyard <command> [args]
+Usage: agentyard <command> [args]
 
 Commands:
   install-control-plane      Bootstrap minder and the root helper (run with sudo)
-  install                    Configure the minder control plane
+  init                       Configure the minder control plane
   create <agent>             Create an agent Linux user and services
   delete <agent>             Delete an agent Linux user and local registry entry
   list                       List configured agents
@@ -29,8 +29,8 @@ case "$command_name" in
   install-control-plane)
     exec "$repo_dir/scripts/install-control-plane" "$@"
     ;;
-  install)
-    exec "$repo_dir/scripts/install" "$@"
+  init)
+    exec "$repo_dir/scripts/init" "$@"
     ;;
   create | create-agent)
     exec "$repo_dir/scripts/create-agent" "$@"

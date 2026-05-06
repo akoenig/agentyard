@@ -9,7 +9,7 @@ Agentyard makes it easy to create and operate isolated [Hermes Agent](https://he
 - Protect every agent hostname with Cloudflare Access SSO, including Google Login, GitHub Login, Microsoft Entra ID, Okta, and other supported identity providers.
 - Keep all long-running daemons non-root: Cloudflare Tunnel runs as `minder`, and each agent's WebUI and gateway run as that agent user.
 - Bootstrap a fresh Ubuntu/Debian host with one public `curl | sudo sh` installer.
-- Avoid Docker entirely while still getting repeatable install, create, update, delete, status, and list commands.
+- Avoid Docker entirely while still getting repeatable bootstrap, create, update, delete, status, and list commands.
 
 The runtime model is intentionally simple:
 
@@ -69,7 +69,7 @@ On a fresh host, run the public bootstrap installer:
 curl -fsSL https://raw.githubusercontent.com/akoenig/agentyard/main/install.sh | sudo sh
 ```
 
-This clones Agentyard into `~minder/agentyard`, runs the control-plane bootstrap, and installs the global `agentyard` command at `/usr/local/bin/agentyard`.
+This clones Agentyard into `~minder/agentyard`, runs the control-plane bootstrap, installs the global `agentyard` command at `/usr/local/bin/agentyard`, and starts the interactive control-plane initialization.
 
 If you already cloned the repository manually, you can run the bootstrap from the clone instead:
 
@@ -87,12 +87,12 @@ This creates:
 - sudoers rule allowing `minder` to run only that helper without a password
 - lingering for `minder`, so its user services can run after logout
 
-## Step 2: Configure Agentyard
+## Step 2: Initialize Agentyard
 
-Run the control-plane installer:
+The public bootstrap installer runs this step automatically. If you need to rerun initialization later, use:
 
 ```bash
-agentyard install
+agentyard init
 ```
 
 The installer creates `.env` from `.env.example` if needed and asks for missing required values.
@@ -172,7 +172,7 @@ Create or update a remotely-managed Cloudflare Tunnel route:
 
 1. In Cloudflare Zero Trust, go to **Networks** -> **Connectors** -> **Cloudflare Tunnels**.
 2. Select your tunnel, or select **Create a tunnel** if you do not have one yet.
-3. If creating a tunnel, choose **Cloudflared**, name the tunnel, save it, and copy the tunnel token into Agentyard when `agentyard install` asks for `CLOUDFLARE_TUNNEL_TOKEN`.
+3. If creating a tunnel, choose **Cloudflared**, name the tunnel, save it, and copy the tunnel token into Agentyard when `agentyard init` asks for `CLOUDFLARE_TUNNEL_TOKEN`.
 4. In the tunnel, go to **Published applications**.
 5. Add a public hostname for the agent.
 6. Set the hostname to `<agent-name>.example.com`.

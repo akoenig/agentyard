@@ -80,9 +80,9 @@ EOF
     systemctl --user daemon-reload
     systemctl --user enable --now agentyard-cloudflared.service
   else
-    printf 'cloudflared is not installed. Install it, then rerun ./agentyard install to create the tunnel service.\n'
+    printf 'cloudflared is not installed. Install it, then rerun agentyard init to create the tunnel service.\n'
   fi
 fi
 
 printf '\nAgentyard control plane is ready. Create an agent with:\n'
-printf '  ./agentyard create <agent-name>\n'
+printf '  agentyard create <agent-name>\n'

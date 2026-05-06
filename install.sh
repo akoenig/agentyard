@@ -41,6 +41,13 @@ chown -R "$control_user:$control_user" "$install_dir"
 AGENTYARD_SUPPRESS_NEXT_STEPS=1 "$install_dir/agentyard" install-control-plane
 chown -R "$control_user:$control_user" "$install_dir"
 
+printf '\nInitializing Agentyard control plane.\n'
+if [ -r /dev/tty ]; then
+  runuser -u "$control_user" -- "$install_dir/agentyard" init </dev/tty
+else
+  printf 'No interactive TTY found. Run this manually after bootstrap: agentyard init\n'
+fi
+
 printf '\nAgentyard control plane bootstrap complete.\n'
-printf 'Next steps:\n'
-printf '  agentyard install\n'
+printf 'Next step:\n'
+printf '  agentyard create <agent-name>\n'
