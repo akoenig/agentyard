@@ -22,13 +22,19 @@ if [ -f .env ]; then
   set +a
 fi
 
+read_from_tty() {
+  prompt="$1"
+  printf '%s' "$prompt" >/dev/tty
+  IFS= read -r reply </dev/tty
+  printf '%s' "$reply"
+}
+
 prompt_if_empty() {
   var_name="$1"
   prompt="$2"
   current_value=$(eval "printf '%s' \"\${$var_name:-}\"")
   if [ -z "$current_value" ]; then
-    printf '%s: ' "$prompt"
-    IFS= read -r new_value
+    new_value=$(read_from_tty "$prompt: ")
     set_env_value "$var_name" "$new_value"
     eval "$var_name=\$new_value"
   fi
@@ -54,7 +60,10 @@ is_cloudflare_tunnel_token() {
 }
 
 prompt_if_empty AGENT_BASE_DOMAIN 'Base domain for agent hostnames (example: example.com)'
-prompt_if_empty AGENT_BASE_PORT 'First local WebUI port (example: 8787)'
+if [ -z "${AGENT_BASE_PORT:-}" ]; then
+  set_env_value AGENT_BASE_PORT 8787
+  AGENT_BASE_PORT=8787
+fi
 
 if [ -n "${CLOUDFLARE_TUNNEL_TOKEN:-}" ] && ! is_cloudflare_tunnel_token "$CLOUDFLARE_TUNNEL_TOKEN"; then
   printf 'Ignoring invalid CLOUDFLARE_TUNNEL_TOKEN value in .env. It should be the JWT tunnel token, not a domain.\n'
@@ -63,8 +72,7 @@ if [ -n "${CLOUDFLARE_TUNNEL_TOKEN:-}" ] && ! is_cloudflare_tunnel_token "$CLOUD
 fi
 
 if [ -z "${CLOUDFLARE_TUNNEL_TOKEN:-}" ]; then
-  printf 'Cloudflare Tunnel token (JWT from Cloudflare, not your domain; leave empty to configure manually): '
-  IFS= read -r tunnel_token
+  tunnel_token=$(read_from_tty 'Cloudflare Tunnel token (JWT from Cloudflare, not your domain; leave empty to configure manually): ')
   if [ -n "$tunnel_token" ]; then
     if is_cloudflare_tunnel_token "$tunnel_token"; then
         set_env_value CLOUDFLARE_TUNNEL_TOKEN "$tunnel_token"
