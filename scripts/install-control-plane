@@ -8,6 +8,7 @@ control_user=${AGENTYARD_CONTROL_USER:-minder}
 agent_group=${AGENTYARD_AGENT_GROUP:-agentyard-agents}
 helper_path=/usr/local/sbin/agentyard-user
 cli_path=/usr/local/bin/agentyard
+cli_link_path=/usr/bin/agentyard
 sudoers_path=/etc/sudoers.d/agentyard
 required_commands="git curl python3 sudo rg ffmpeg gcc cloudflared unattended-upgrade"
 
@@ -85,6 +86,7 @@ fi
 exec sudo -iu "\$control_user" -- "\$cli" "\$@"
 EOF
 chmod 0755 "$cli_path"
+ln -sf "$cli_path" "$cli_link_path"
 
 cat >"$sudoers_path" <<EOF
 $control_user ALL=(root) NOPASSWD: $helper_path
@@ -96,6 +98,7 @@ loginctl enable-linger "$control_user"
 printf 'Control-plane user is ready: %s\n' "$control_user"
 printf 'Helper installed: %s\n' "$helper_path"
 printf 'Global CLI installed: %s\n' "$cli_path"
+printf 'Global CLI link installed: %s\n' "$cli_link_path"
 if [ "${AGENTYARD_SUPPRESS_NEXT_STEPS:-0}" != "1" ]; then
   printf '\nNext steps:\n'
   printf '  sudo -iu %s\n' "$control_user"
