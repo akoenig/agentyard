@@ -7,6 +7,7 @@ repo_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 control_user=${AGENTYARD_CONTROL_USER:-minder}
 agent_group=${AGENTYARD_AGENT_GROUP:-agentyard-agents}
 helper_path=/usr/local/sbin/agentyard-user
+cli_path=/usr/local/bin/agentyard
 sudoers_path=/etc/sudoers.d/agentyard
 required_commands="git curl python3 sudo rg ffmpeg gcc cloudflared unattended-upgrade"
 
@@ -63,6 +64,28 @@ fi
 
 install -m 0755 "$repo_dir/scripts/agentyard-user-helper" "$helper_path"
 
+cat >"$cli_path" <<EOF
+#!/usr/bin/env sh
+set -eu
+
+control_user=\${AGENTYARD_CONTROL_USER:-$control_user}
+repo_dir=\${AGENTYARD_REPO_DIR:-/home/\$control_user/agentyard}
+cli=\$repo_dir/agentyard
+
+[ -x "\$cli" ] || { printf 'Missing Agentyard CLI at %s. Run the remote installer first.\n' "\$cli" >&2; exit 1; }
+
+if [ "\$(id -un)" = "\$control_user" ]; then
+  exec "\$cli" "\$@"
+fi
+
+if [ "\$(id -u)" -eq 0 ]; then
+  exec runuser -u "\$control_user" -- "\$cli" "\$@"
+fi
+
+exec sudo -iu "\$control_user" -- "\$cli" "\$@"
+EOF
+chmod 0755 "$cli_path"
+
 cat >"$sudoers_path" <<EOF
 $control_user ALL=(root) NOPASSWD: $helper_path
 EOF
@@ -72,10 +95,10 @@ loginctl enable-linger "$control_user"
 
 printf 'Control-plane user is ready: %s\n' "$control_user"
 printf 'Helper installed: %s\n' "$helper_path"
+printf 'Global CLI installed: %s\n' "$cli_path"
 if [ "${AGENTYARD_SUPPRESS_NEXT_STEPS:-0}" != "1" ]; then
   printf '\nNext steps:\n'
   printf '  sudo -iu %s\n' "$control_user"
   printf '  git clone <this-repo> ~/agentyard\n'
-  printf '  cd ~/agentyard\n'
-  printf '  ./agentyard install\n'
+  printf '  agentyard install\n'
 fi

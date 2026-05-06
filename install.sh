@@ -43,6 +43,4 @@ chown -R "$control_user:$control_user" "$install_dir"
 
 printf '\nAgentyard control plane bootstrap complete.\n'
 printf 'Next steps:\n'
-printf '  sudo -iu %s\n' "$control_user"
-printf '  cd ~/agentyard\n'
-printf '  ./agentyard install\n'
+printf '  agentyard install\n'

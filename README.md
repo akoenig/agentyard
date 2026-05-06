@@ -69,7 +69,7 @@ On a fresh host, run the public bootstrap installer:
 curl -fsSL https://raw.githubusercontent.com/akoenig/agentyard/main/install.sh | sudo sh
 ```
 
-This clones Agentyard into `~minder/agentyard` and runs the control-plane bootstrap.
+This clones Agentyard into `~minder/agentyard`, runs the control-plane bootstrap, and installs the global `agentyard` command at `/usr/local/bin/agentyard`.
 
 If you already cloned the repository manually, you can run the bootstrap from the clone instead:
 
@@ -83,22 +83,16 @@ This creates:
 - Linux user `minder`
 - system group `agentyard-agents`
 - root-owned helper `/usr/local/sbin/agentyard-user`
+- root-owned global CLI wrapper `/usr/local/bin/agentyard`, which executes Agentyard commands as `minder`
 - sudoers rule allowing `minder` to run only that helper without a password
 - lingering for `minder`, so its user services can run after logout
 
-Then switch to `minder`:
-
-```bash
-sudo -iu minder
-cd ~/agentyard
-```
-
 ## Step 2: Configure Agentyard
 
-Run the control-plane installer as `minder`:
+Run the control-plane installer:
 
 ```bash
-./agentyard install
+agentyard install
 ```
 
 The installer creates `.env` from `.env.example` if needed and asks for missing required values.
@@ -122,7 +116,7 @@ The Cloudflare Tunnel daemon runs as `minder`, not root.
 Create an agent as `minder`:
 
 ```bash
-./agentyard create <agent-name>
+agentyard create <agent-name>
 ```
 
 This creates Linux user `<agent-name>`, locks its password, enables lingering, installs Hermes Agent and Hermes WebUI into that user's home directory, and creates these user services:
@@ -178,7 +172,7 @@ Create or update a remotely-managed Cloudflare Tunnel route:
 
 1. In Cloudflare Zero Trust, go to **Networks** -> **Connectors** -> **Cloudflare Tunnels**.
 2. Select your tunnel, or select **Create a tunnel** if you do not have one yet.
-3. If creating a tunnel, choose **Cloudflared**, name the tunnel, save it, and copy the tunnel token into Agentyard when `./agentyard install` asks for `CLOUDFLARE_TUNNEL_TOKEN`.
+3. If creating a tunnel, choose **Cloudflared**, name the tunnel, save it, and copy the tunnel token into Agentyard when `agentyard install` asks for `CLOUDFLARE_TUNNEL_TOKEN`.
 4. In the tunnel, go to **Published applications**.
 5. Add a public hostname for the agent.
 6. Set the hostname to `<agent-name>.example.com`.
@@ -222,36 +216,36 @@ Cloudflare Access authenticates the browser. Hermes WebUI then talks to the Herm
 
 ## Operations
 
-Run these as `minder` from `~/agentyard`.
+Run these from any shell. The global wrapper executes Agentyard as `minder`.
 
 List agents:
 
 ```bash
-./agentyard list
+agentyard list
 ```
 
 Show service status:
 
 ```bash
-./agentyard status
+agentyard status
 ```
 
 Update one agent:
 
 ```bash
-./agentyard update <agent-name>
+agentyard update <agent-name>
 ```
 
 Update all agents:
 
 ```bash
-./agentyard update-all
+agentyard update-all
 ```
 
 Delete an agent and its Linux user:
 
 ```bash
-./agentyard delete <agent-name>
+agentyard delete <agent-name>
 ```
 
 View logs for one agent:
@@ -263,7 +257,7 @@ sudo /usr/local/sbin/agentyard-user run-as <agent-name> journalctl --user -u age
 
 ## Update Model
 
-`./agentyard update <agent>` runs the update inside that agent's Linux user:
+`agentyard update <agent>` runs the update inside that agent's Linux user:
 
 - `hermes update`
 - `git pull --ff-only` in `~/hermes-webui`
@@ -271,7 +265,7 @@ sudo /usr/local/sbin/agentyard-user run-as <agent-name> journalctl --user -u age
 - restarts `agentyard-gateway.service`
 - restarts `agentyard-webui.service`
 
-`./agentyard update-all` runs the same flow sequentially for every registered agent.
+`agentyard update-all` runs the same flow sequentially for every registered agent.
 
 ## Passwords And Users
 
