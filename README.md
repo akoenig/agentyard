@@ -220,24 +220,6 @@ minder
 
 Root is only needed for one-time control-plane bootstrap and narrow OS account operations through `/usr/local/sbin/agentyard-user`. No long-running daemon runs as root.
 
-## Proxmox LXC
-
-Agentyard can run inside an unprivileged Proxmox LXC without Docker-specific idmaps, rootless Docker, subordinate UID/GID ranges, or a `/dev/net/tun` mount.
-
-On the Proxmox host, inspect the CT config:
-
-```bash
-pct config <CTID>
-```
-
-The CT can use a minimal unprivileged configuration. `features: nesting=1` is commonly useful for systemd user services:
-
-```text
-features: nesting=1
-```
-
-For the strongest isolation boundary between agents and the host, run Agentyard in a VM instead of LXC.
-
 ## Operations
 
 Run these from any shell. The global wrapper executes Agentyard as `minder`.
