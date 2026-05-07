@@ -1,5 +1,6 @@
 #!/usr/bin/env sh
 set -eu
+umask 077
 
 usage() {
   printf 'Usage: %s <agent-name>\n' "$0" >&2
@@ -24,7 +25,7 @@ sudo "$helper" run-as "$SYSTEM_USER" sh -lc "set -eu; PATH=\"\$HOME/.local/bin:\
 sudo "$helper" enable-linger "$SYSTEM_USER"
 system_uid=$(id -u "$SYSTEM_USER")
 docker_host="unix:///run/user/$system_uid/docker.sock"
-sudo "$helper" run-as "$SYSTEM_USER" sh -lc "set -eu; PATH=\"\$HOME/bin:\$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin:\$PATH\"; export HERMES_HOME=\"$HERMES_PROFILE\" DOCKER_HOST=\"$docker_host\"; systemctl --user import-environment DOCKER_HOST; if command -v dockerd-rootless-setuptool.sh >/dev/null 2>&1; then if ! systemctl --user cat docker.service >/dev/null 2>&1; then dockerd-rootless-setuptool.sh install; fi; systemctl --user enable --now docker.service; fi; systemctl --user daemon-reload; if ! systemctl --user cat hermes-gateway.service >/dev/null 2>&1; then hermes gateway install; fi; mkdir -p \"\$HOME/.config/systemd/user/hermes-gateway.service.d\"; printf '[Service]\nEnvironment=DOCKER_HOST=%s\n' \"$docker_host\" >\"\$HOME/.config/systemd/user/hermes-gateway.service.d/agentyard-rootless-docker.conf\"; systemctl --user daemon-reload; systemctl --user enable hermes-gateway.service >/dev/null 2>&1 || true; hermes gateway restart || hermes gateway start"
+sudo "$helper" run-as "$SYSTEM_USER" sh -lc "set -eu; PATH=\"\$HOME/bin:\$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin:\$PATH\"; export HERMES_HOME=\"$HERMES_PROFILE\" DOCKER_HOST=\"$docker_host\"; systemctl --user import-environment DOCKER_HOST; if command -v dockerd-rootless-setuptool.sh >/dev/null 2>&1; then if ! systemctl --user cat docker.service >/dev/null 2>&1; then dockerd-rootless-setuptool.sh install; fi; mkdir -p \"\$HOME/.config/systemd/user/docker.service.d\"; printf '[Service]\nUMask=0077\n' >\"\$HOME/.config/systemd/user/docker.service.d/agentyard-umask.conf\"; systemctl --user daemon-reload; systemctl --user enable --now docker.service; fi; systemctl --user daemon-reload; if ! systemctl --user cat hermes-gateway.service >/dev/null 2>&1; then hermes gateway install; fi; mkdir -p \"\$HOME/.config/systemd/user/hermes-gateway.service.d\"; printf '[Service]\nEnvironment=DOCKER_HOST=%s\nUMask=0077\n' \"$docker_host\" >\"\$HOME/.config/systemd/user/hermes-gateway.service.d/agentyard-rootless-docker.conf\"; systemctl --user daemon-reload; systemctl --user enable hermes-gateway.service >/dev/null 2>&1 || true; hermes gateway restart || hermes gateway start"
 sudo "$helper" run-as "$SYSTEM_USER" systemctl --user restart agentyard-webui.service
 
 printf 'Updated agent %s.\n' "$agent"

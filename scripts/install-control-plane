@@ -1,5 +1,6 @@
 #!/usr/bin/env sh
 set -eu
+umask 077
 
 [ "$(id -u)" -eq 0 ] || { printf 'Run this script with sudo/root.\n' >&2; exit 1; }
 
@@ -120,6 +121,8 @@ if ! id "$control_user" >/dev/null 2>&1; then
   useradd --create-home --shell /bin/bash "$control_user"
   passwd -l "$control_user" >/dev/null 2>&1 || true
 fi
+control_home=$(getent passwd "$control_user" | cut -d: -f6)
+[ -n "$control_home" ] && [ -d "$control_home" ] && chmod go-rwx "$control_home"
 remove_user_subid_ranges "$control_user"
 
 if ! getent group "$agent_group" >/dev/null 2>&1; then

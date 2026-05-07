@@ -1,5 +1,6 @@
 #!/usr/bin/env sh
 set -eu
+umask 077
 
 usage() {
   printf 'Usage: %s <agent-name>\n' "$0" >&2
@@ -84,7 +85,7 @@ sudo "$helper" run-as "$agent" sh -lc "set -eu; cd \"\$HOME\"; PATH=\"\$HOME/.lo
 printf 'Setting up rootless Docker as %s.\n' "$agent"
 if command -v dockerd-rootless-setuptool.sh >/dev/null 2>&1; then
   sudo "$helper" enable-linger "$agent"
-  sudo "$helper" run-as "$agent" sh -lc "set -eu; export PATH=\"\$HOME/bin:\$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin:\$PATH\" DOCKER_HOST=\"$docker_host\"; if ! systemctl --user cat docker.service >/dev/null 2>&1; then dockerd-rootless-setuptool.sh install; fi; systemctl --user import-environment DOCKER_HOST; systemctl --user enable --now docker.service; if ! grep -q '^export DOCKER_HOST=' \"\$HOME/.profile\" 2>/dev/null; then printf '\n# Agentyard rootless Docker\nexport DOCKER_HOST=%s\n' \"$docker_host\" >>\"\$HOME/.profile\"; fi"
+  sudo "$helper" run-as "$agent" sh -lc "set -eu; export PATH=\"\$HOME/bin:\$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin:\$PATH\" DOCKER_HOST=\"$docker_host\"; if ! systemctl --user cat docker.service >/dev/null 2>&1; then dockerd-rootless-setuptool.sh install; fi; mkdir -p \"\$HOME/.config/systemd/user/docker.service.d\"; printf '[Service]\nUMask=0077\n' >\"\$HOME/.config/systemd/user/docker.service.d/agentyard-umask.conf\"; systemctl --user import-environment DOCKER_HOST; systemctl --user daemon-reload; systemctl --user enable --now docker.service; if ! grep -q '^export DOCKER_HOST=' \"\$HOME/.profile\" 2>/dev/null; then printf '\n# Agentyard rootless Docker\nexport DOCKER_HOST=%s\n' \"$docker_host\" >>\"\$HOME/.profile\"; fi"
 else
   printf 'dockerd-rootless-setuptool.sh is missing. Re-run the control-plane installer to install docker-ce-rootless-extras.\n'
 fi
@@ -113,6 +114,7 @@ Environment=HERMES_WEBUI_HOST=127.0.0.1
 Environment=HERMES_WEBUI_PORT=$port
 Environment=HERMES_WEBUI_SKIP_ONBOARDING=1
 Environment=HERMES_EXEC_ASK=1
+UMask=0077
 ExecStart=$webui_dir/.venv/bin/python $webui_dir/bootstrap.py --skip-agent-install --no-browser --foreground --host 127.0.0.1 $port
 Restart=on-failure
 RestartSec=5
@@ -130,7 +132,7 @@ sudo "$helper" run-as "$agent" sh -lc "PATH=\"\$HOME/.local/bin:\$PATH\" HERMES_
 
 printf 'Ensuring Hermes gateway service is installed and running as %s.\n' "$agent"
 sudo "$helper" enable-linger "$agent"
-sudo "$helper" run-as "$agent" sh -lc "set -eu; PATH=\"\$HOME/.local/bin:\$PATH\"; export HERMES_HOME=\"$profile_dir\" DOCKER_HOST=\"$docker_host\"; systemctl --user import-environment DOCKER_HOST; systemctl --user daemon-reload; if ! systemctl --user cat hermes-gateway.service >/dev/null 2>&1; then hermes gateway install; fi; mkdir -p \"\$HOME/.config/systemd/user/hermes-gateway.service.d\"; printf '[Service]\nEnvironment=DOCKER_HOST=%s\n' \"$docker_host\" >\"\$HOME/.config/systemd/user/hermes-gateway.service.d/agentyard-rootless-docker.conf\"; systemctl --user daemon-reload; systemctl --user enable hermes-gateway.service >/dev/null 2>&1 || true; hermes gateway start"
+sudo "$helper" run-as "$agent" sh -lc "set -eu; PATH=\"\$HOME/.local/bin:\$PATH\"; export HERMES_HOME=\"$profile_dir\" DOCKER_HOST=\"$docker_host\"; systemctl --user import-environment DOCKER_HOST; systemctl --user daemon-reload; if ! systemctl --user cat hermes-gateway.service >/dev/null 2>&1; then hermes gateway install; fi; mkdir -p \"\$HOME/.config/systemd/user/hermes-gateway.service.d\"; printf '[Service]\nEnvironment=DOCKER_HOST=%s\nUMask=0077\n' \"$docker_host\" >\"\$HOME/.config/systemd/user/hermes-gateway.service.d/agentyard-rootless-docker.conf\"; systemctl --user daemon-reload; systemctl --user enable hermes-gateway.service >/dev/null 2>&1 || true; hermes gateway start"
 sudo "$helper" run-as "$agent" systemctl --user enable --now agentyard-webui.service
 
 printf '\nAgent %s is ready.\n' "$agent"

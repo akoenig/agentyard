@@ -1,5 +1,6 @@
 #!/usr/bin/env sh
 set -eu
+umask 077
 
 control_user=${AGENTYARD_CONTROL_USER:-minder}
 helper=${AGENTYARD_HELPER:-/usr/local/sbin/agentyard-user}
@@ -144,6 +145,7 @@ After=network-online.target
 [Service]
 Type=simple
 ExecStart=$cloudflared_path tunnel run --token $CLOUDFLARE_TUNNEL_TOKEN
+UMask=0077
 Restart=on-failure
 RestartSec=5
 
