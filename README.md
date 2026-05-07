@@ -9,7 +9,7 @@ Agentyard makes it easy to create and operate isolated [Hermes Agent](https://he
 - Protect every agent hostname with Cloudflare Access SSO, including Google Login, GitHub Login, Microsoft Entra ID, Okta, and other supported identity providers.
 - Keep all long-running daemons non-root: Cloudflare Tunnel runs as `minder`, and each agent's WebUI and gateway run as that agent user.
 - Bootstrap a fresh Ubuntu/Debian host with one public `curl | sudo sh` installer.
-- Use native system users and systemd for Agentyard itself while installing Docker Engine for Hermes features that need it.
+- Use native system users, systemd, private home directories, and Hermes' local terminal backend for per-agent isolation.
 
 ## Requirements
 
@@ -44,12 +44,14 @@ sudo ./agentyard install-control-plane
 
 This creates:
 
-- required system packages and tools when missing: `git`, `curl`, `python3`, `python3-venv`, `python3-dev`, `sudo`, `unattended-upgrades`, `ripgrep`, `ffmpeg`, `build-essential`, `libffi-dev`, Docker Engine, and `cloudflared`
+- required system packages and tools when missing: `git`, `curl`, `python3`, `python3-venv`, `python3-dev`, `sudo`, `unattended-upgrades`, `ripgrep`, `ffmpeg`, `build-essential`, `libffi-dev`, and `cloudflared`
 - Linux user `minder`
 - system group `agentyard-agents`
 - root-owned helper `/usr/local/sbin/agentyard-user`
 - root-owned global CLI wrapper `/usr/local/bin/agentyard`, which executes Agentyard commands as `minder`
 - sudoers rule allowing `minder` to run only that helper without a password
+- private permissions for existing `/home/*` directories
+- best-effort `/proc` privacy with `hidepid=2`, where supported
 - lingering for `minder`, so its user services can run after logout
 
 ### Step 2: Initialize Agentyard
@@ -84,10 +86,9 @@ Create an agent as `minder`:
 agentyard create <agent-name>
 ```
 
-This creates Linux user `<agent-name>`, locks its password, enables lingering, installs Hermes Agent and Hermes WebUI into that user's home directory, sets up rootless Docker for that user, and ensures these user services exist:
+This creates Linux user `<agent-name>`, locks its password, enables lingering, installs Hermes Agent and Hermes WebUI into that user's private home directory, and ensures these user services exist:
 
 ```text
-~<agent-name>/.config/systemd/user/docker.service
 ~<agent-name>/.config/systemd/user/agentyard-webui.service
 ~<agent-name>/.config/systemd/user/hermes-gateway.service
 ```
@@ -190,7 +191,7 @@ The runtime model is intentionally simple:
 - each agent is its own non-root Linux user named after the agent.
 - Cloudflare Tunnel runs as the non-root `minder` user.
 - [Hermes Agent](https://hermes-agent.nousresearch.com/), [Hermes WebUI](https://github.com/nesquena/hermes-webui), credentials, memory, cron jobs, and workspace files live inside each agent user's home directory.
-- Agentyard does not run agents as Docker containers. Docker Engine and rootless Docker extras are installed so each agent can run its own user-scoped Docker daemon for Hermes features that need a local Docker backend.
+- Agentyard does not run agents as Docker containers. Hermes commands execute through the local terminal backend as the owning non-root agent user.
 
 ```text
 Browser
@@ -210,7 +211,6 @@ minder
   ~/agentyard/agents/<agent-name>/agent.env
 
 <agent-name>
-  docker.service
   agentyard-webui.service
   hermes-gateway.service
   ~/.hermes
@@ -222,7 +222,7 @@ Root is only needed for one-time control-plane bootstrap and narrow OS account o
 
 ## Proxmox LXC
 
-If you run Agentyard inside an unprivileged Proxmox LXC and want Hermes Docker-backed tools, rootless Docker needs nested user namespaces. Enable nesting for the CT and make enough subordinate UID/GID space available on the Proxmox host.
+If you run Agentyard inside an unprivileged Proxmox LXC, enable nesting and provide `/dev/net/tun` so Cloudflare Tunnel and user services work correctly.
 
 On the Proxmox host, inspect the CT config:
 
@@ -234,23 +234,10 @@ The CT needs settings like:
 
 ```text
 features: nesting=1
-lxc.idmap: u 0 100000 165536
-lxc.idmap: g 0 100000 165536
 lxc.mount.entry: /dev/net/tun dev/net/tun none bind,create=file
 ```
 
-The Proxmox host also needs matching subordinate ranges for root. A conservative way is to keep the default range and append the extra range:
-
-```bash
-cp -a /etc/subuid /etc/subuid.bak.$(date +%Y%m%d-%H%M%S)
-cp -a /etc/subgid /etc/subgid.bak.$(date +%Y%m%d-%H%M%S)
-echo 'root:165536:100000' >> /etc/subuid
-echo 'root:165536:100000' >> /etc/subgid
-```
-
-This allows the CT mapping `100000-265535` without replacing the existing `root:100000:65536` entry. Agentyard allocates each new agent's `/etc/subuid` and `/etc/subgid` ranges from the ID space available inside the CT. The example above is enough for one rootless-Docker agent. For multiple agents, increase the CT idmap and host subordinate range by roughly `65536` IDs per additional agent.
-
-Security tradeoff: this gives the unprivileged CT a larger host UID/GID mapping range and enables more kernel namespace features. It does not make CT root equal host root, and Agentyard still avoids the root Docker socket, but it expands the kernel/container attack surface. For the strongest isolation boundary, run Agentyard in a VM instead of LXC.
+Agentyard no longer requires Docker, rootless Docker, or subordinate UID/GID ranges. For the strongest isolation boundary between agents and the host, run Agentyard in a VM instead of LXC.
 
 ## Operations
 
@@ -311,10 +298,10 @@ Agent users are service accounts:
 
 - password is locked
 - no sudo privileges
-- not a member of the root Docker daemon's `docker` group
-- gets a per-user rootless Docker daemon at `unix:///run/user/<uid>/docker.sock` for Docker-backed Hermes tools
 - no SSH keys are created
 - services run with `systemd --user`
 - secrets remain inside that user's home directory
+- home directories are not readable or traversable by other users
+- files and directories created by Agentyard services default to private permissions
 
 The `minder` user is also non-root. It can only run the root-owned Agentyard helper through sudo. That helper creates/deletes agent users, enables lingering, and runs commands as agent users.

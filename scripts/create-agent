@@ -64,8 +64,6 @@ webui_dir="$agent_home/hermes-webui"
 workspace_dir="$agent_home/workspace"
 webui_state_dir="$agent_home/webui-state"
 unit_dir="$agent_home/.config/systemd/user"
-agent_uid=$(id -u "$agent")
-docker_host="unix:///run/user/$agent_uid/docker.sock"
 
 mkdir -p "$agent_dir"
 cat >"$agent_dir/agent.env" <<EOF
@@ -81,14 +79,6 @@ EOF
 
 printf 'Installing Hermes Agent and WebUI as %s.\n' "$agent"
 sudo "$helper" run-as "$agent" sh -lc "set -eu; cd \"\$HOME\"; PATH=\"\$HOME/.local/bin:\$PATH\"; if [ ! -x \"\$HOME/.local/bin/hermes\" ]; then curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash -s -- --skip-setup --hermes-home \"$profile_dir\"; fi; mkdir -p \"$workspace_dir\" \"$webui_state_dir\" \"$unit_dir\"; if [ ! -d \"$webui_dir/.git\" ]; then git clone \"$webui_repo\" \"$webui_dir\"; fi; git -C \"$webui_dir\" fetch origin; git -C \"$webui_dir\" checkout \"$webui_ref\"; python3 -m venv \"$webui_dir/.venv\"; \"$webui_dir/.venv/bin/python\" -m pip install --upgrade pip >/dev/null; \"$webui_dir/.venv/bin/python\" -m pip install -r \"$webui_dir/requirements.txt\"; printf '{\"onboarding_completed\":true}\n' >\"$webui_state_dir/settings.json\""
-
-printf 'Setting up rootless Docker as %s.\n' "$agent"
-if command -v dockerd-rootless-setuptool.sh >/dev/null 2>&1; then
-  sudo "$helper" enable-linger "$agent"
-  sudo "$helper" run-as "$agent" sh -lc "set -eu; export PATH=\"\$HOME/bin:\$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin:\$PATH\" DOCKER_HOST=\"$docker_host\"; if ! systemctl --user cat docker.service >/dev/null 2>&1; then dockerd-rootless-setuptool.sh install; fi; mkdir -p \"\$HOME/.config/systemd/user/docker.service.d\"; printf '[Service]\nUMask=0077\n' >\"\$HOME/.config/systemd/user/docker.service.d/agentyard-umask.conf\"; systemctl --user import-environment DOCKER_HOST; systemctl --user daemon-reload; systemctl --user enable --now docker.service; if ! grep -q '^export DOCKER_HOST=' \"\$HOME/.profile\" 2>/dev/null; then printf '\n# Agentyard rootless Docker\nexport DOCKER_HOST=%s\n' \"$docker_host\" >>\"\$HOME/.profile\"; fi"
-else
-  printf 'dockerd-rootless-setuptool.sh is missing. Re-run the control-plane installer to install docker-ce-rootless-extras.\n'
-fi
 
 sudo "$helper" run-as "$agent" sh -lc "cat >\"$profile_dir/config.yaml\" <<'EOF'
 terminal:
@@ -107,7 +97,6 @@ Type=simple
 WorkingDirectory=$webui_dir
 Environment=PATH=$agent_home/.local/bin:/usr/local/bin:/usr/bin:/bin
 Environment=HERMES_HOME=$profile_dir
-Environment=DOCKER_HOST=$docker_host
 Environment=HERMES_WEBUI_STATE_DIR=$webui_state_dir
 Environment=HERMES_WEBUI_DEFAULT_WORKSPACE=$workspace_dir
 Environment=HERMES_WEBUI_HOST=127.0.0.1
@@ -122,6 +111,7 @@ RestartSec=5
 [Install]
 WantedBy=default.target
 EOF
+chmod 0644 "/tmp/agentyard-webui-$agent.service"
 
 sudo "$helper" run-as "$agent" sh -lc "mkdir -p \"$unit_dir\"; cp /tmp/agentyard-webui-$agent.service \"$unit_dir/agentyard-webui.service\""
 rm -f "/tmp/agentyard-webui-$agent.service"
@@ -132,7 +122,7 @@ sudo "$helper" run-as "$agent" sh -lc "PATH=\"\$HOME/.local/bin:\$PATH\" HERMES_
 
 printf 'Ensuring Hermes gateway service is installed and running as %s.\n' "$agent"
 sudo "$helper" enable-linger "$agent"
-sudo "$helper" run-as "$agent" sh -lc "set -eu; PATH=\"\$HOME/.local/bin:\$PATH\"; export HERMES_HOME=\"$profile_dir\" DOCKER_HOST=\"$docker_host\"; systemctl --user import-environment DOCKER_HOST; systemctl --user daemon-reload; if ! systemctl --user cat hermes-gateway.service >/dev/null 2>&1; then hermes gateway install; fi; mkdir -p \"\$HOME/.config/systemd/user/hermes-gateway.service.d\"; printf '[Service]\nEnvironment=DOCKER_HOST=%s\nUMask=0077\n' \"$docker_host\" >\"\$HOME/.config/systemd/user/hermes-gateway.service.d/agentyard-rootless-docker.conf\"; systemctl --user daemon-reload; systemctl --user enable hermes-gateway.service >/dev/null 2>&1 || true; hermes gateway start"
+sudo "$helper" run-as "$agent" sh -lc "set -eu; PATH=\"\$HOME/.local/bin:\$PATH\"; export HERMES_HOME=\"$profile_dir\"; systemctl --user daemon-reload; if ! systemctl --user cat hermes-gateway.service >/dev/null 2>&1; then hermes gateway install; fi; mkdir -p \"\$HOME/.config/systemd/user/hermes-gateway.service.d\"; printf '[Service]\nUMask=0077\n' >\"\$HOME/.config/systemd/user/hermes-gateway.service.d/agentyard-umask.conf\"; rm -f \"\$HOME/.config/systemd/user/hermes-gateway.service.d/agentyard-rootless-docker.conf\"; systemctl --user daemon-reload; systemctl --user enable hermes-gateway.service >/dev/null 2>&1 || true; hermes gateway start"
 sudo "$helper" run-as "$agent" systemctl --user enable --now agentyard-webui.service
 
 printf '\nAgent %s is ready.\n' "$agent"

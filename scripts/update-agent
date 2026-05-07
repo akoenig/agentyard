@@ -23,9 +23,37 @@ agent_env="agents/$agent/agent.env"
 printf 'Updating Hermes Agent and WebUI for %s.\n' "$agent"
 sudo "$helper" run-as "$SYSTEM_USER" sh -lc "set -eu; PATH=\"\$HOME/.local/bin:\$PATH\"; hermes update || true; git -C \"$WEBUI_DIR\" pull --ff-only; python3 -m venv \"$WEBUI_DIR/.venv\"; \"$WEBUI_DIR/.venv/bin/python\" -m pip install --upgrade pip >/dev/null; \"$WEBUI_DIR/.venv/bin/python\" -m pip install -r \"$WEBUI_DIR/requirements.txt\""
 sudo "$helper" enable-linger "$SYSTEM_USER"
-system_uid=$(id -u "$SYSTEM_USER")
-docker_host="unix:///run/user/$system_uid/docker.sock"
-sudo "$helper" run-as "$SYSTEM_USER" sh -lc "set -eu; PATH=\"\$HOME/bin:\$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin:\$PATH\"; export HERMES_HOME=\"$HERMES_PROFILE\" DOCKER_HOST=\"$docker_host\"; systemctl --user import-environment DOCKER_HOST; if command -v dockerd-rootless-setuptool.sh >/dev/null 2>&1; then if ! systemctl --user cat docker.service >/dev/null 2>&1; then dockerd-rootless-setuptool.sh install; fi; mkdir -p \"\$HOME/.config/systemd/user/docker.service.d\"; printf '[Service]\nUMask=0077\n' >\"\$HOME/.config/systemd/user/docker.service.d/agentyard-umask.conf\"; systemctl --user daemon-reload; systemctl --user enable --now docker.service; fi; systemctl --user daemon-reload; if ! systemctl --user cat hermes-gateway.service >/dev/null 2>&1; then hermes gateway install; fi; mkdir -p \"\$HOME/.config/systemd/user/hermes-gateway.service.d\"; printf '[Service]\nEnvironment=DOCKER_HOST=%s\nUMask=0077\n' \"$docker_host\" >\"\$HOME/.config/systemd/user/hermes-gateway.service.d/agentyard-rootless-docker.conf\"; systemctl --user daemon-reload; systemctl --user enable hermes-gateway.service >/dev/null 2>&1 || true; hermes gateway restart || hermes gateway start"
+
+cat >"/tmp/agentyard-webui-$agent.service" <<EOF
+[Unit]
+Description=Agentyard WebUI
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=$WEBUI_DIR
+Environment=PATH=$AGENT_HOME/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=HERMES_HOME=$HERMES_PROFILE
+Environment=HERMES_WEBUI_STATE_DIR=$AGENT_HOME/webui-state
+Environment=HERMES_WEBUI_DEFAULT_WORKSPACE=$WORKSPACE
+Environment=HERMES_WEBUI_HOST=127.0.0.1
+Environment=HERMES_WEBUI_PORT=$PORT
+Environment=HERMES_WEBUI_SKIP_ONBOARDING=1
+Environment=HERMES_EXEC_ASK=1
+UMask=0077
+ExecStart=$WEBUI_DIR/.venv/bin/python $WEBUI_DIR/bootstrap.py --skip-agent-install --no-browser --foreground --host 127.0.0.1 $PORT
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+EOF
+chmod 0644 "/tmp/agentyard-webui-$agent.service"
+
+sudo "$helper" run-as "$SYSTEM_USER" sh -lc "set -eu; mkdir -p \"\$HOME/.config/systemd/user\"; cp /tmp/agentyard-webui-$agent.service \"\$HOME/.config/systemd/user/agentyard-webui.service\""
+rm -f "/tmp/agentyard-webui-$agent.service"
+
+sudo "$helper" run-as "$SYSTEM_USER" sh -lc "set -eu; PATH=\"\$HOME/bin:\$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin:\$PATH\"; export HERMES_HOME=\"$HERMES_PROFILE\"; systemctl --user disable --now docker.service >/dev/null 2>&1 || true; rm -rf \"\$HOME/.config/systemd/user/docker.service.d\"; systemctl --user daemon-reload; if ! systemctl --user cat hermes-gateway.service >/dev/null 2>&1; then hermes gateway install; fi; mkdir -p \"\$HOME/.config/systemd/user/hermes-gateway.service.d\"; printf '[Service]\nUMask=0077\n' >\"\$HOME/.config/systemd/user/hermes-gateway.service.d/agentyard-umask.conf\"; rm -f \"\$HOME/.config/systemd/user/hermes-gateway.service.d/agentyard-rootless-docker.conf\"; systemctl --user daemon-reload; systemctl --user enable hermes-gateway.service >/dev/null 2>&1 || true; hermes gateway restart || hermes gateway start"
 sudo "$helper" run-as "$SYSTEM_USER" systemctl --user restart agentyard-webui.service
 
 printf 'Updated agent %s.\n' "$agent"

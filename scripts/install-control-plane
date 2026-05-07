@@ -11,53 +11,7 @@ helper_path=/usr/local/sbin/agentyard-user
 cli_path=/usr/local/bin/agentyard
 cli_link_path=/usr/bin/agentyard
 sudoers_path=/etc/sudoers.d/agentyard
-required_commands="git curl python3 sudo rg ffmpeg gcc cloudflared unattended-upgrade docker"
-
-install_docker_engine() {
-  if command -v docker >/dev/null 2>&1 && command -v dockerd-rootless-setuptool.sh >/dev/null 2>&1; then
-    systemctl enable --now docker 2>/dev/null || true
-    return 0
-  fi
-
-  if ! command -v apt-get >/dev/null 2>&1; then
-    printf 'Docker Engine auto-install currently requires Ubuntu/Debian with apt-get.\n' >&2
-    exit 1
-  fi
-
-  . /etc/os-release
-  docker_codename=${VERSION_CODENAME:-}
-  if [ -z "$docker_codename" ]; then
-    printf 'Could not determine OS codename for Docker apt repository.\n' >&2
-    exit 1
-  fi
-
-  install -m 0755 -d /etc/apt/keyrings
-  curl -fsSL "https://download.docker.com/linux/$ID/gpg" -o /etc/apt/keyrings/docker.asc
-  chmod a+r /etc/apt/keyrings/docker.asc
-
-  printf 'deb [arch=%s signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/%s %s stable\n' "$(dpkg --print-architecture)" "$ID" "$docker_codename" >/etc/apt/sources.list.d/docker.list
-
-  apt-get update
-  apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin docker-ce-rootless-extras uidmap dbus-user-session
-  systemctl enable --now docker
-}
-
-configure_rootless_docker_host() {
-  if [ -w /etc/sysctl.d ]; then
-    cat >/etc/sysctl.d/99-agentyard-rootless-docker.conf <<EOF
-kernel.unprivileged_userns_clone=1
-user.max_user_namespaces=28633
-EOF
-    sysctl --system >/dev/null 2>&1 || true
-  fi
-
-  if command -v newuidmap >/dev/null 2>&1; then
-    chmod u+s "$(command -v newuidmap)" 2>/dev/null || true
-  fi
-  if command -v newgidmap >/dev/null 2>&1; then
-    chmod u+s "$(command -v newgidmap)" 2>/dev/null || true
-  fi
-}
+required_commands="git curl python3 sudo rg ffmpeg gcc cloudflared unattended-upgrade"
 
 install_packages() {
   missing=""
@@ -71,17 +25,12 @@ install_packages() {
     missing="$missing python3-venv"
   fi
 
-  if [ -z "$missing" ]; then
-    install_docker_engine
-    return 0
-  fi
+  [ -n "$missing" ] || return 0
 
   printf 'Installing required packages:%s\n' "$missing"
   if command -v apt-get >/dev/null 2>&1; then
     apt-get update
     apt-get install -y ca-certificates curl git python3 python3-venv python3-dev sudo unattended-upgrades ripgrep ffmpeg build-essential libffi-dev
-
-    install_docker_engine
 
     if ! command -v cloudflared >/dev/null 2>&1; then
       arch=$(dpkg --print-architecture)
@@ -104,18 +53,35 @@ install_packages() {
   fi
 }
 
-remove_user_subid_ranges() {
-  user_name="$1"
-  for file_path in /etc/subuid /etc/subgid; do
-    [ -f "$file_path" ] || continue
-    tmp_file="$file_path.agentyard.$$"
-    grep -v "^$user_name:" "$file_path" >"$tmp_file" || true
-    mv "$tmp_file" "$file_path"
+harden_home_directories() {
+  for home_dir in /home/*; do
+    [ -d "$home_dir" ] || continue
+    chmod go-rwx "$home_dir"
   done
 }
 
+configure_proc_privacy() {
+  if [ "${AGENTYARD_DISABLE_PROC_HIDEPID:-0}" = "1" ]; then
+    return 0
+  fi
+
+  groupadd -f proc
+
+  if [ -f /etc/fstab ]; then
+    if ! grep -Eq '^[^#][[:space:]]+/proc[[:space:]]+' /etc/fstab; then
+      printf 'proc /proc proc defaults,hidepid=2,gid=proc 0 0\n' >>/etc/fstab
+    elif ! grep -Eq '^[^#][[:space:]]+/proc[[:space:]].*hidepid=2' /etc/fstab; then
+      printf 'Agentyard: /etc/fstab already defines /proc without hidepid=2; leaving it unchanged.\n'
+    fi
+  fi
+
+  if ! mount -o remount,hidepid=2,gid=proc /proc 2>/dev/null; then
+    printf 'Agentyard: could not remount /proc with hidepid=2 now; this can be normal in some containers.\n'
+  fi
+}
+
 install_packages
-configure_rootless_docker_host
+configure_proc_privacy
 
 if ! id "$control_user" >/dev/null 2>&1; then
   useradd --create-home --shell /bin/bash "$control_user"
@@ -123,7 +89,7 @@ if ! id "$control_user" >/dev/null 2>&1; then
 fi
 control_home=$(getent passwd "$control_user" | cut -d: -f6)
 [ -n "$control_home" ] && [ -d "$control_home" ] && chmod go-rwx "$control_home"
-remove_user_subid_ranges "$control_user"
+harden_home_directories
 
 if ! getent group "$agent_group" >/dev/null 2>&1; then
   groupadd --system "$agent_group"
