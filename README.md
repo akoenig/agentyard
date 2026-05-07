@@ -222,7 +222,7 @@ Root is only needed for one-time control-plane bootstrap and narrow OS account o
 
 ## Proxmox LXC
 
-If you run Agentyard inside an unprivileged Proxmox LXC, enable nesting and provide `/dev/net/tun` so Cloudflare Tunnel and user services work correctly.
+Agentyard can run inside an unprivileged Proxmox LXC without Docker-specific idmaps, rootless Docker, subordinate UID/GID ranges, or a `/dev/net/tun` mount.
 
 On the Proxmox host, inspect the CT config:
 
@@ -230,14 +230,13 @@ On the Proxmox host, inspect the CT config:
 pct config <CTID>
 ```
 
-The CT needs settings like:
+The CT can use a minimal unprivileged configuration. `features: nesting=1` is commonly useful for systemd user services:
 
 ```text
 features: nesting=1
-lxc.mount.entry: /dev/net/tun dev/net/tun none bind,create=file
 ```
 
-Agentyard no longer requires Docker, rootless Docker, or subordinate UID/GID ranges. For the strongest isolation boundary between agents and the host, run Agentyard in a VM instead of LXC.
+For the strongest isolation boundary between agents and the host, run Agentyard in a VM instead of LXC.
 
 ## Operations
 
